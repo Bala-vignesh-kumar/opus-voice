@@ -1,0 +1,17 @@
+{
+  "name": "opus-voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "opus-voice": "src/index.mjs"
+  },
+  "scripts": {
+    "build": "./build.sh",
+    "start": "node src/index.mjs",
+    "test": "node --test 'test/*.test.mjs'",
+    "voices": "node scripts/voices.mjs",
+    "mic-test": "node scripts/mic-test.mjs",
+    "install-piper": "./scripts/install-piper.sh"
+  }
+}

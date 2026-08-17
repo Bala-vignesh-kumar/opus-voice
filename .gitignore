@@ -1,0 +1,9 @@
+node_modules/
+bin/voiceio
+vendor/
+
+# Local settings — copy config.example.json to config.json and edit.
+config.json
+
+# Captured discussions. Yours, not the repo's.
+notes/
