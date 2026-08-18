@@ -148,7 +148,22 @@ Other voices — pass any name from
 ./scripts/install-piper.sh en_US-ryan-high
 ```
 
-Then set `"piperVoice": "en_US-ryan-high"` in `config.json`.
+Then set `"piperVoice": "en_US-ryan-high"` in `config.json`. Any locale works, not
+just American English — `en_GB-alba-medium`, `de_DE-thorsten-high` and so on.
+
+**If the download fails.** Re-run it. The model is downloaded to a scratch file
+and only moved into place once complete, so an interrupted transfer is detected
+and replaced rather than left behind as a half-model that quietly breaks
+synthesis. If the machine cannot reach huggingface at all — blocked, proxied or
+rate-limited — point it somewhere else:
+
+```sh
+PIPER_VOICES_URL=https://your-mirror/piper-voices ./scripts/install-piper.sh
+```
+
+The URL is the root of the voice tree; the script appends
+`<family>/<locale>/<name>/<quality>/<voice>.onnx` to it. Copying that folder from
+a machine that already has it works too.
 
 **Falling back to Apple.** Set `"tts": "apple"` to use system synthesis instead;
 it also happens automatically if Piper isn't installed. Apple's compact voices are

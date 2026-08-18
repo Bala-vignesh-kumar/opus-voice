@@ -151,7 +151,7 @@ if [ -s "$MODEL" ] && [ -s "$MODEL.json" ]; then
   SIZE=$(( $(wc -c < "$MODEL") / 1000000 ))
   if [ "$SIZE" -lt 5 ]; then
     bad "voice model is only ${SIZE}MB — the download was truncated"
-    info "delete vendor/voices and re-run this script"
+    info "re-run this script; it replaces an incomplete model rather than keeping it"
   else
     # Synthesizing once proves the whole chain works, not just that a file exists.
     if vendor/py/bin/python - "$VOICE" >/dev/null 2>&1 <<'PY'
