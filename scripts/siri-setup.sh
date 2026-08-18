@@ -27,8 +27,13 @@ PHRASE="$(node -e 'import("./src/config.mjs").then(m => process.stdout.write(m.l
 mkdir -p "$WAKE_DIR"
 cat > "$HOOK" <<EOF
 #!/bin/bash
-# Touched by a Shortcut; opus voice watches this file and wakes when it changes.
-touch "$WAKE_FILE"
+# Poked by a Shortcut; opus voice watches this file and wakes when it changes.
+#
+# Shortcuts runs shell actions in a sandbox with a stripped PATH, so no external
+# command can be assumed to exist — even \`touch\` fails with "No such file or
+# directory". A redirect and \$RANDOM are both bash builtins, need no PATH, and
+# change the file's contents as well as its timestamp.
+printf '%s\\n' "\$RANDOM" > "$WAKE_FILE" || exit 1
 EOF
 chmod +x "$HOOK"
 touch "$WAKE_FILE"

@@ -26,6 +26,7 @@ let status = null;
 let speaking = false;
 let todos = [];
 let phrase = 'hey falcon';
+let hint = '"hey falcon"';
 let showDone = false;
 
 // ---------------------------------------------------------------- rendering
@@ -82,7 +83,7 @@ function paintState() {
   else if (status) { kind = 'thinking'; label = status; }
   else if (mode === 'note') { kind = 'notes'; label = `listening — say "${phrase} stop" to finish`; }
   else if (mode === 'chat' || mode === 'awake') { kind = 'listening'; label = 'listening'; }
-  else { label = `asleep — say "${phrase}" to wake`; }
+  else { label = `asleep — say ${hint} to wake`; }
 
   orb.className = `orb ${kind}`;
   document.querySelector('.empty .orb').className = `orb ${kind}`;
@@ -202,14 +203,19 @@ function paintTodos() {
   }
 }
 
-function info({ model, engine, locale, onDevice, workdir, wakePhrase }) {
-  if (wakePhrase) {
-    phrase = wakePhrase;
-    const hint = document.querySelector('.empty p');
-    if (hint) hint.innerHTML = `Say <b></b> to wake it.`;
-    if (hint) hint.querySelector('b').textContent = phrase;
-    paintState();
+function info({ model, engine, locale, onDevice, workdir, wakePhrase, wakeHint }) {
+  if (wakePhrase) phrase = wakePhrase;
+  if (wakeHint) {
+    hint = wakeHint;
+    const empty = document.querySelector('.empty p');
+    if (empty) {
+      empty.textContent = '';
+      const b = document.createElement('b');
+      b.textContent = wakeHint.replace(/"/g, '');
+      empty.append('Say ', b, ' to wake it.');
+    }
   }
+  if (wakePhrase || wakeHint) paintState();
   const bits = [model, engine, `${onDevice ? 'on-device' : 'server'} ${locale}`, workdir];
   metaEl.textContent = bits.filter(Boolean).join('  ·  ');
   metaEl.title = workdir ?? '';

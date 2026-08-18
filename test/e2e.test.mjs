@@ -521,3 +521,17 @@ test('it says so loudly when nothing can wake it', async () => {
     await app.expect('nothing you say can wake it');
   } finally { app.stop(); }
 });
+
+test('the asleep line says how it can actually be woken', async () => {
+  // With the microphone released the wake phrase cannot reach it, and printing
+  // it anyway is a lie the user only discovers by talking to nothing.
+  const released = new App();
+  try {
+    await released.expect('asleep — say "hey siri, falcon" to wake');
+  } finally { released.stop(); }
+
+  const holding = new App({ args: ['--hold-mic', 'true'] });
+  try {
+    await holding.expect('asleep — say "hey falcon" to wake');
+  } finally { holding.stop(); }
+});

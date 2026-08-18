@@ -51,6 +51,7 @@ export class Ui {
     this.lastSpeaker = null;
     this.printed = false;   // has any transcript line been written yet
     this.phrase = 'hey falcon';   // replaced by the banner, which knows the config
+    this.hint = '"hey falcon"';   // how to wake it, which is not always the phrase
   }
 
   /** Usable text width, leaving the gutter and a right margin. */
@@ -80,8 +81,9 @@ export class Ui {
     this.print(body.map((line, i) => `${i === 0 ? head : pad}${open}${line}${close}`).join('\n'));
   }
 
-  banner({ voice, model, onDevice, workdir, engine, locale, recognizer, wakePhrase }) {
+  banner({ voice, model, onDevice, workdir, engine, locale, recognizer, wakePhrase, wakeHint }) {
     if (wakePhrase) this.phrase = wakePhrase;
+    if (wakeHint) this.hint = wakeHint;
     const quality = onDevice ? 'on-device' : 'server-based';
     const spoken = engine === 'piper' ? 'piper neural' : voice;
     // Which recognizer is running is the single biggest factor in how well it
@@ -123,7 +125,7 @@ export class Ui {
   /** Announces a mode change and parks it on the live line. */
   mode(name) {
     const labels = {
-      asleep: `${C.grey}asleep — say "${this.phrase}" to wake${C.reset}`,
+      asleep: `${C.grey}asleep — say ${this.hint} to wake${C.reset}`,
       awake: `${C.green}awake${C.reset}`,
       chat: `${C.green}chat${C.reset}`,
       note: `${C.amber}taking notes${C.reset} ${C.grey}— say "${this.phrase} stop" to finish${C.reset}`,

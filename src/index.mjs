@@ -363,6 +363,10 @@ voice.on('ready', (event) => {
     locale: event.locale,
     recognizer: event.recognizer,
     wakePhrase: wakePhrase(),
+    // How it can actually be woken right now. With the microphone released the
+    // wake phrase cannot reach it, and printing it anyway is a lie the user
+    // discovers by talking to something that is not listening.
+    wakeHint: config.holdMic ? `"${wakePhrase()}"` : `"hey siri, ${config.siriPhrase}"`,
   });
   if (!event.onDevice) {
     view.warn('on-device speech model missing — recognition is going over the network');
