@@ -167,11 +167,15 @@ function finishNotes() {
   if (!notes.active) return;
   if (notes.count === 0) {
     notes.discard();
-    setMode(MODE.AWAKE, "I didn't catch anything worth noting.");
+    setMode(MODE.ASLEEP, "I didn't catch anything worth noting.");
     return;
   }
   const transcript = notes.transcript();
-  setMode(MODE.AWAKE, null);
+  // "falcon stop" means stop, in note mode as much as anywhere else. Landing
+  // awake here left it answering a room that had just finished talking to each
+  // other, which is the one situation note mode exists to avoid. Silent,
+  // because the spoken summary a moment later is the acknowledgement.
+  setMode(MODE.ASLEEP, null);
   view.note(`summarizing ${notes.count} utterances…`);
   pendingSummary = true;
   ask(SUMMARY_PROMPT + transcript, { silent: true });

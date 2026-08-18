@@ -67,6 +67,26 @@ class App {
     return fs.readFileSync(this.log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   }
 
+  /** The mode it is actually in: the last one it announced. */
+  mode() {
+    const seen = [...this.out.matchAll(/(asleep|awake|chat|taking notes)/g)].map((m) => m[1]);
+    return seen[seen.length - 1] ?? '(none)';
+  }
+
+  /**
+   * Waits until it is actually in a mode. Not expect(): the word "asleep" is
+   * already on screen from the opening banner, so searching the output for it
+   * matches instantly and asserts before the transition has happened.
+   */
+  async waitForMode(name, timeout = 8000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      if (this.mode() === name) return true;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error(`timed out waiting for mode ${name}, still ${this.mode()}\n--- output ---\n${this.out}`);
+  }
+
   /** Lets any in-flight routing settle before asserting a negative. */
   async settle(ms = 700) { await new Promise((r) => setTimeout(r, ms)); }
 
@@ -329,5 +349,61 @@ test('action items from a discussion land on the list', async () => {
         .map((f) => path.join(app.dir, 'notes', d, f)))[0];
     const body = fs.readFileSync(notesFile, 'utf8');
     assert.ok(!body.includes('ACTION:'), 'the action marker is stripped');
+  } finally { app.stop(); }
+});
+
+// ------------------------------------------------------- every road to asleep
+
+// Sleep is the command people reach for most, and it has more entry points than
+// anything else: four phrasings, with and without the name, from four modes.
+// They are covered together because a fix to one used to leave the others
+// broken — note mode in particular ended awake for a long time.
+const SLEEP_ROUTES = [
+  { mode: 'awake', setup: ['falcon'], say: 'stop' },
+  { mode: 'awake', setup: ['falcon'], say: 'sleep' },
+  { mode: 'awake', setup: ['falcon'], say: 'go to sleep' },
+  { mode: 'awake', setup: ['falcon'], say: 'falcon stop' },
+  { mode: 'chat', setup: ["falcon let's discuss"], say: 'stop' },
+  { mode: 'chat', setup: ["falcon let's discuss"], say: 'sleep' },
+  { mode: 'chat', setup: ["falcon let's discuss"], say: 'go to sleep' },
+  { mode: 'chat', setup: ["falcon let's discuss"], say: 'falcon stop' },
+];
+
+for (const route of SLEEP_ROUTES) {
+  test(`"${route.say}" puts it to sleep from ${route.mode}`, async () => {
+    const app = new App();
+    try {
+      await app.expect('opus voice');
+      for (const line of route.setup) app.type(line);
+      await app.waitForMode(route.mode);
+      app.type(route.say);
+      await app.waitForMode('asleep');
+    } finally { app.stop(); }
+  });
+}
+
+test('ending note mode goes to sleep rather than staying awake', async () => {
+  // It used to land awake, which left it answering a room that had just been
+  // talking to each other — the one thing note mode exists to avoid.
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    app.type('falcon listen');
+    await app.waitForMode('taking notes');
+    app.type('the catch block marks it processed even when it threw');
+    app.type('falcon stop');
+    await app.expect('notes saved to');
+    await app.waitForMode('asleep');
+  } finally { app.stop(); }
+});
+
+test('ending note mode with nothing captured also sleeps', async () => {
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    app.type('falcon listen');
+    await app.waitForMode('taking notes');
+    app.type('falcon stop');
+    await app.waitForMode('asleep');
   } finally { app.stop(); }
 });
