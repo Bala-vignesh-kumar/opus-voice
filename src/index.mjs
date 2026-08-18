@@ -24,6 +24,7 @@ import { Todos } from './todos.mjs';
 import { parseTodo } from './todo-commands.mjs';
 import { createIssue } from './github.mjs';
 import { Trigger, FILE as WAKE_FILE, HOOK } from './trigger.mjs';
+import { checkShortcut } from './siri.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -379,6 +380,14 @@ voice.on('ready', (event) => {
     // silently ignores you is the worst possible outcome — so say so loudly.
     if (fs.existsSync(HOOK)) {
       view.note(`microphone released while asleep — say "hey siri, ${config.siriPhrase}" to wake it`);
+      // The hook existing proves half of it. Siri finds a Shortcut by name and
+      // nothing else, so a correct Shortcut under the wrong name is invisible
+      // and the app just seems to ignore you.
+      checkShortcut(config.siriPhrase).then(({ ok, message }) => {
+        if (ok || !message) return;
+        view.warn(message);
+        view.warn('rename it, or set "siriPhrase" to match');
+      });
     } else {
       view.warn('mic released, but no Siri hook — nothing you say can wake it');
       view.warn('run:  npm run siri');

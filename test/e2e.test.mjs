@@ -424,7 +424,9 @@ test('ending note mode with nothing captured also sleeps', async () => {
 test('speech heard while asleep leaves no trace in the transcript', async () => {
   // Room noise reaches the recognizer constantly. Recording it filled the
   // window with garbled fragments that read as if it were still working.
-  const app = new App();
+  // holdMic true so the mic stays open and the Siri setup check stays out of
+  // the way — what is under test is ignored speech, not startup advice.
+  const app = new App({ args: ['--hold-mic', 'true'] });
   try {
     await app.expect('opus voice');
     await app.waitForMode('asleep');
