@@ -14,6 +14,7 @@
     "voices": "node scripts/voices.mjs",
     "mic-test": "node scripts/mic-test.mjs",
     "install-piper": "./scripts/install-piper.sh",
-    "doctor": "./scripts/doctor.sh"
+    "doctor": "./scripts/doctor.sh",
+    "siri": "./scripts/siri-setup.sh"
   }
 }

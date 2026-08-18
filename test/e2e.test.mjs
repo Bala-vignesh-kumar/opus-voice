@@ -23,8 +23,9 @@ const strip = (text) => text.replace(/\[[0-9;]*m/g, '');
 class App {
   /** Always runs in a scratch working directory: the app writes todos.json and
    *  notes/ into it, and a test run must never touch the project. */
-  constructor({ dir = null, args = [] } = {}) {
+  constructor({ dir = null, args = [], wakeFile = null } = {}) {
     this.args = args;
+    this.wakeFile = wakeFile;
     this.dir = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
     this.log = path.join(this.dir, 'asked.log');
     this.inject = path.join(this.dir, 'speech.txt');
@@ -47,6 +48,7 @@ class App {
         OPUS_VOICE_CLAUDE_BIN: path.join(STUBS, 'claude.mjs'),
         STUB_CLAUDE_LOG: this.log,
         STUB_VOICE_INJECT: this.inject,
+        ...(this.wakeFile ? { OPUS_VOICE_WAKE_FILE: this.wakeFile } : {}),
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -446,5 +448,55 @@ test('showIgnored brings the old behaviour back for debugging', async () => {
     app.speak('you reality I');
     await app.expect('you reality I');
     assert.deepEqual(app.asked(), [], 'shown, but still never answered');
+  } finally { app.stop(); }
+});
+
+// -------------------------------------------------------- waking without a mic
+
+test('with holdMic off it releases the microphone while asleep', async () => {
+  const app = new App({ args: ['--hold-mic', 'false'] });
+  try {
+    await app.expect('microphone released while asleep');
+    await app.waitForMode('asleep');
+    assert.ok(app.out.includes('microphone released'), 'the daemon confirmed it');
+  } finally { app.stop(); }
+});
+
+test('the wake file opens the microphone and wakes it', async () => {
+  const wake = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'opus-wake-')), 'wake');
+  const app = new App({ args: ['--hold-mic', 'false'], wakeFile: wake });
+  try {
+    await app.waitForMode('asleep');
+    assert.equal(app.mode(), 'asleep');
+
+    // Exactly what the Shortcut does.
+    fs.writeFileSync(wake, `${Date.now()}`);
+
+    await app.waitForMode('awake');
+    assert.ok(app.out.includes('woken by Siri'));
+    assert.ok(app.out.includes('microphone open'), 'the mic was taken back');
+  } finally { app.stop(); }
+});
+
+test('a wake file left over from last time does not wake it at startup', async () => {
+  // The file persists between runs, so a stale one must not fire on boot.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opus-wake-'));
+  const wake = path.join(dir, 'wake');
+  fs.writeFileSync(wake, 'stale');
+
+  const app = new App({ args: ['--hold-mic', 'false'], wakeFile: wake });
+  try {
+    await app.waitForMode('asleep');
+    await app.settle();
+    assert.equal(app.mode(), 'asleep', 'still asleep despite the old file');
+  } finally { app.stop(); }
+});
+
+test('holding the mic is still the default', async () => {
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    await app.settle();
+    assert.ok(!app.out.includes('microphone released'), 'nothing is released by default');
   } finally { app.stop(); }
 });

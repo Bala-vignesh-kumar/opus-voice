@@ -45,6 +45,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     emit({ type: 'speech_start', text: command.text });
     emit({ type: 'speech_end', interrupted: false });
   }
+  if (command.cmd === 'standby') emit({ type: 'standby', on: Boolean(command.on) });
   if (command.cmd === 'pcm_start') emit({ type: 'speech_start', text: command.text });
   if (command.cmd === 'pcm_end') emit({ type: 'speech_end', interrupted: false });
   // Lets the test inject a recognized utterance as though it had been spoken.

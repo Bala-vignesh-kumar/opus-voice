@@ -35,6 +35,9 @@ export class VoiceIO extends EventEmitter {
   }
 
   configure(options) { this.#send({ cmd: 'configure', ...options }); }
+
+  /** Hands the microphone back to the system, or takes it again. */
+  standby(on) { this.#send({ cmd: 'standby', on }); }
   speak(text) { this.#send({ cmd: 'speak', text }); }
 
   // Externally synthesized audio, played through the same engine so echo
@@ -65,6 +68,7 @@ export class VoiceIO extends EventEmitter {
       case 'level': this.emit('level', event.rms); break;
       case 'recog-error':
       case 'recog_error': this.emit('recog-error', event); break;
+      case 'standby': this.emit('standby', event.on); break;
       case 'warn': this.emit('warn', event.message); break;
       case 'error':
         this.emit('error', Object.assign(new Error(event.message), { fatal: event.fatal }));

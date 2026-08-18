@@ -27,6 +27,9 @@ export const DEFAULTS = {
   awakeTimeoutMs: 30000,    // silence in awake or chat mode before it sleeps again
   greeting: 'Say hey falcon when you need me.',
   showIgnored: false,       // record speech heard while asleep in the transcript
+  holdMic: true,            // keep the mic open while asleep so the phrase can wake it
+  siriPhrase: 'falcon',     // the Shortcut's name, said as "hey siri, falcon"
+
 
   ui: false,                // open the desktop window (npm run app sets this)
   uiPort: 4477,             // loopback port for the window; steps up if taken

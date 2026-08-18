@@ -66,6 +66,43 @@ recognition and want to see everything it picks up.
 
 Set `"wakeWord": false` to go back to answering everything it hears.
 
+### Waking without holding the microphone
+
+By default the app keeps the microphone open so it can hear its own name. That is
+how any third-party app has to do it, and it is why the orange indicator stays
+lit and the app is listed as using the microphone the whole time it runs.
+
+"Hey Siri" does not work that way. Its detector runs on dedicated low-power
+silicon outside the normal audio path, which is how it can listen continuously
+without holding the microphone or lighting the indicator. **There is no API to
+that** — it is reserved for Siri, and no third-party app can register a wake word
+with it.
+
+What you can do is let Siri do the listening. Siri already runs Shortcuts by
+name, so a Shortcut that pokes this app turns Apple's wake word into yours:
+
+```sh
+npm run siri
+```
+
+That installs the hook and prints the four steps to bind it to a Shortcut, which
+has to be done by hand — Shortcuts are signed, so no script can create one. Then
+set `"holdMic": false` and the app keeps the microphone closed until you say
+**"Hey Siri, falcon"**. Between conversations it holds no audio device at all: no
+indicator, nothing in Control Center, nothing to trace.
+
+The trade-off is real and there is no way around it: **with `holdMic` off,
+nothing you say can wake it.** Siri wakes it, or the buttons in the window, or
+typing. Something has to be listening for a voice to trigger anything, and if it
+is not this app then it is Siri.
+
+| | `holdMic: true` (default) | `holdMic: false` |
+|---|---|---|
+| wake by voice | "hey falcon" | "Hey Siri, falcon" |
+| mic while asleep | held open | released |
+| indicator when idle | on | off |
+| works without Siri | yes | no |
+
 ### Note mode
 
 `hey falcon listen` captures the conversation without speaking. On `hey falcon stop` it

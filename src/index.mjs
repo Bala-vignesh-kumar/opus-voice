@@ -23,6 +23,7 @@ import { Notes, SUMMARY_PROMPT, splitSummary } from './notes.mjs';
 import { Todos } from './todos.mjs';
 import { parseTodo } from './todo-commands.mjs';
 import { createIssue } from './github.mjs';
+import { Trigger, FILE as WAKE_FILE } from './trigger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -133,6 +134,10 @@ function say(sentence) {
 function setMode(next, spoken) {
   const changed = mode !== next;
   mode = next;
+  // With holdMic off the microphone is handed back whenever it sleeps, so the
+  // app leaves no trace of listening at all between conversations. Nothing it
+  // can hear will wake it after that — the Shortcut does that instead.
+  if (changed && !config.holdMic && started) voice.standby(next === MODE.ASLEEP);
   // Called on every question to refresh the idle timer, so only announce a
   // genuine transition.
   if (changed) view.mode(next);
@@ -363,6 +368,10 @@ voice.on('ready', (event) => {
     view.warn('on-device speech model missing — recognition is going over the network');
   }
   pushTodos();
+  if (!config.holdMic) {
+    voice.standby(mode === MODE.ASLEEP);
+    view.note(`microphone released while asleep — say "hey siri, ${config.siriPhrase}" to wake it`);
+  }
   if (config.greeting) speaker.say(config.greeting);
   view.mode(mode);
 
@@ -400,6 +409,7 @@ voice.on('speech-end', () => {
   if (!claude.busy && !voice.speaking) view.clearLive();
 });
 
+voice.on('standby', (on) => view.note(on ? 'microphone released' : 'microphone open'));
 voice.on('warn', (message) => view.warn(message));
 
 // Recognition failing looks identical to nobody talking, so say it out loud
@@ -572,6 +582,15 @@ async function openWindow() {
   view.note(`window at ${url}`);
   return url;
 }
+
+// Woken from outside: a Siri Shortcut, a hotkey, anything that can touch a file.
+const trigger = new Trigger();
+trigger.on('wake', () => {
+  if (mode === MODE.NOTE) return;
+  view.note('woken by Siri');
+  if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, 'yes?');
+  else armSleep();
+});
 
 // MARK: typed input + shutdown
 

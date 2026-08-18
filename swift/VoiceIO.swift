@@ -238,6 +238,7 @@ final class VoiceIO: NSObject {
 
     // Turn state.
     private var listening = true
+    private var standby = false
     private var speaking = false
     private var partial = ""
     private var lastChange = Date()
@@ -329,6 +330,17 @@ final class VoiceIO: NSObject {
         // Voice processing turns the built-in mic into a 9-channel array feed
         // whose channels all carry the same processed signal, so take channel 0
         // and hand the recognizer plain mono.
+        try startInput()
+
+        if voice == nil { voice = Self.resolveVoice(nil) }
+    }
+
+    /// Taps the microphone and runs the engine. Separate from `setupAudio` so
+    /// coming back from standby does not re-attach nodes that are still
+    /// attached — the player and mixer connections outlive `engine.stop()`,
+    /// only the input tap and the engine itself need restarting.
+    private func startInput() throws {
+        let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
         micFormat = AVAudioFormat(standardFormatWithSampleRate: inputFormat.sampleRate, channels: 1)
         input.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
@@ -340,11 +352,8 @@ final class VoiceIO: NSObject {
                 self.request?.append(mono)
             }
         }
-
         engine.prepare()
         try engine.start()
-
-        if voice == nil { voice = Self.resolveVoice(nil) }
     }
 
     private func mono(from buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
@@ -587,6 +596,44 @@ final class VoiceIO: NSObject {
 
     // MARK: Speech
 
+    /// Releases the microphone entirely, or takes it back.
+    ///
+    /// Stopping the engine and removing the tap is what actually hands the
+    /// device back to the system — pausing recognition alone keeps the input
+    /// running, which is what puts the orange indicator in the menu bar and
+    /// lists this process as using the microphone. Standby is therefore a real
+    /// teardown, and the cost is that nothing can be heard until it is undone.
+    func setStandby(_ on: Bool) {
+        guard on != standby else { return }
+        standby = on
+
+        if on {
+            task?.cancel()
+            task = nil
+            request?.endAudio()
+            request = nil
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            state.sync { partial = "" }
+            emit(["type": "standby", "on": true])
+            return
+        }
+
+        do {
+            try startInput()
+        } catch {
+            fail("could not reopen the microphone: \(error.localizedDescription)")
+            return
+        }
+        if usingTranscriber {
+            // The analyzer survived standby; it simply stopped being fed.
+            state.sync { partial = "" }
+        } else {
+            restartRecognition()
+        }
+        emit(["type": "standby", "on": false])
+    }
+
     func speak(_ text: String) {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
@@ -802,6 +849,8 @@ final class VoiceIO: NSObject {
                 listening = command["on"] as? Bool ?? true
                 partial = ""
             }
+        case "standby":
+            io.setStandby(command["on"] as? Bool ?? true)
         case "configure":
             configure(command)
         case "voices":
