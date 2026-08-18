@@ -50,9 +50,41 @@ else
 fi
 
 if shortcuts list 2>/dev/null | grep -qix "$PHRASE"; then
-  printf '%s✓%s a shortcut named "%s" already exists\n' "$green" "$reset" "$PHRASE"
+  printf '%s✓%s a shortcut named "%s" exists\n' "$green" "$reset" "$PHRASE"
   printf '\n  Test it:  %sshortcuts run "%s"%s\n' "$dim" "$PHRASE" "$reset"
   printf '  Or say:   %s"Hey Siri, %s"%s\n\n' "$dim" "$PHRASE" "$reset"
+  exit 0
+fi
+
+# A shortcut whose action is this hook but whose name is wrong is the common
+# failure: Shortcuts names a new shortcut after its first action, so one built
+# from these instructions and not renamed ends up called "Run Shell Script".
+# Siri only answers to the name, so this is worth saying precisely rather than
+# reprinting the same four steps.
+if shortcuts list 2>/dev/null | grep -qix "Run Shell Script"; then
+  cat <<EOF
+
+${amber}A shortcut called "Run Shell Script" exists, but Siri answers to the name${reset}
+
+Shortcuts names a new shortcut after its first action, so it is almost certainly
+yours — built correctly and never renamed. Siri will not find it as "$PHRASE"
+until the name changes.
+
+  1. Run:  ${bold}shortcuts view "Run Shell Script"${reset}
+  2. Click the shortcut's name in the ${bold}toolbar at the top${reset}
+     ${dim}(not the "Run Shell Script" action in the body — that is the action's
+     own title and renaming it does nothing)${reset}
+  3. Type ${bold}$PHRASE${reset} and press ${bold}Return${reset}
+  4. Close the window so it saves
+
+Then check it took:
+
+    ${bold}shortcuts list${reset}
+
+If it still says "Run Shell Script", the rename did not commit — Return, then
+closing the window, is what saves it.
+
+EOF
   exit 0
 fi
 
