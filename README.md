@@ -68,9 +68,11 @@ Set `"wakeWord": false` to go back to answering everything it hears.
 
 ### Waking without holding the microphone
 
-By default the app keeps the microphone open so it can hear its own name. That is
-how any third-party app has to do it, and it is why the orange indicator stays
-lit and the app is listed as using the microphone the whole time it runs.
+By default the app releases the microphone whenever it sleeps, so it holds no
+audio device between conversations — no indicator, nothing in Control Center.
+Set `"holdMic": true` to keep it open and listen for the wake phrase instead,
+which is how any third-party app has to hear its own name, and why the orange
+indicator then stays lit the whole time it runs.
 
 "Hey Siri" does not work that way. Its detector runs on dedicated low-power
 silicon outside the normal audio path, which is how it can listen continuously
@@ -86,22 +88,23 @@ npm run siri
 ```
 
 That installs the hook and prints the four steps to bind it to a Shortcut, which
-has to be done by hand — Shortcuts are signed, so no script can create one. Then
-set `"holdMic": false` and the app keeps the microphone closed until you say
-**"Hey Siri, falcon"**. Between conversations it holds no audio device at all: no
-indicator, nothing in Control Center, nothing to trace.
+has to be done by hand — Shortcuts are signed, so no script can create one. After
+that, **"Hey Siri, falcon"** wakes it.
+
+Until the Shortcut exists there is no way in but typing, so the app says so at
+startup rather than silently ignoring you.
 
 The trade-off is real and there is no way around it: **with `holdMic` off,
 nothing you say can wake it.** Siri wakes it, or the buttons in the window, or
 typing. Something has to be listening for a voice to trigger anything, and if it
 is not this app then it is Siri.
 
-| | `holdMic: true` (default) | `holdMic: false` |
+| | `holdMic: false` (default) | `holdMic: true` |
 |---|---|---|
-| wake by voice | "hey falcon" | "Hey Siri, falcon" |
-| mic while asleep | held open | released |
-| indicator when idle | on | off |
-| works without Siri | yes | no |
+| wake by voice | "Hey Siri, falcon" | "hey falcon" |
+| mic while asleep | released | held open |
+| indicator when idle | off | on |
+| works without Siri | no | yes |
 
 ### Note mode
 
@@ -366,6 +369,8 @@ three independent guards against it interrupting itself.
 | `narrateTools` | `true` | speak "let me look at that" when a tool runs |
 | `bargeInWords` | `2` | words needed to interrupt |
 | `fillerDelayMs` | `250` | grace period before the thinking beat |
+| `holdMic` | `false` | keep the mic open while asleep to hear the wake phrase |
+| `siriPhrase` | `falcon` | the Shortcut's name, said as "hey siri, falcon" |
 | `wakeWord` | `true` | require the wake phrase before it answers |
 | `wakePhrase` | `hey falcon` | what wakes it |
 | `awakeTimeoutMs` | `30000` | silence in awake or chat before it sleeps again |

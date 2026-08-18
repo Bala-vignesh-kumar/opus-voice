@@ -27,7 +27,10 @@ export const DEFAULTS = {
   awakeTimeoutMs: 30000,    // silence in awake or chat mode before it sleeps again
   greeting: 'Say hey falcon when you need me.',
   showIgnored: false,       // record speech heard while asleep in the transcript
-  holdMic: true,            // keep the mic open while asleep so the phrase can wake it
+  // false: hand the microphone back whenever it sleeps, so nothing is held
+  // between conversations and Siri does the waking. true: keep it open and
+  // listen for the wake phrase, which means holding the device the whole time.
+  holdMic: false,
   siriPhrase: 'falcon',     // the Shortcut's name, said as "hey siri, falcon"
 
 

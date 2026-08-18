@@ -23,9 +23,11 @@ const strip = (text) => text.replace(/\[[0-9;]*m/g, '');
 class App {
   /** Always runs in a scratch working directory: the app writes todos.json and
    *  notes/ into it, and a test run must never touch the project. */
-  constructor({ dir = null, args = [], wakeFile = null } = {}) {
+  constructor({ dir = null, args = [], wakeFile = null, hook = null } = {}) {
     this.args = args;
     this.wakeFile = wakeFile;
+    // Point at the real hook by default so tests reflect a set-up machine.
+    this.hook = hook ?? path.join(ROOT, 'package.json');
     this.dir = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
     this.log = path.join(this.dir, 'asked.log');
     this.inject = path.join(this.dir, 'speech.txt');
@@ -49,6 +51,7 @@ class App {
         STUB_CLAUDE_LOG: this.log,
         STUB_VOICE_INJECT: this.inject,
         ...(this.wakeFile ? { OPUS_VOICE_WAKE_FILE: this.wakeFile } : {}),
+        OPUS_VOICE_WAKE_HOOK: this.hook,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -492,11 +495,29 @@ test('a wake file left over from last time does not wake it at startup', async (
   } finally { app.stop(); }
 });
 
-test('holding the mic is still the default', async () => {
-  const app = new App();
+test('holdMic true keeps the microphone open', async () => {
+  const app = new App({ args: ['--hold-mic', 'true'] });
   try {
     await app.expect('opus voice');
     await app.settle();
-    assert.ok(!app.out.includes('microphone released'), 'nothing is released by default');
+    assert.ok(!app.out.includes('microphone released'), 'nothing is released');
+  } finally { app.stop(); }
+});
+
+test('releasing the mic is the default', async () => {
+  const app = new App();
+  try {
+    await app.expect('microphone released');
+    await app.waitForMode('asleep');
+  } finally { app.stop(); }
+});
+
+test('it says so loudly when nothing can wake it', async () => {
+  // Mic released and no Siri hook means the only way in is typing. An app that
+  // silently ignores everything you say is the worst outcome here.
+  const app = new App({ hook: path.join(os.tmpdir(), 'opus-no-such-hook') });
+  try {
+    await app.expect('npm run siri');
+    await app.expect('nothing you say can wake it');
   } finally { app.stop(); }
 });

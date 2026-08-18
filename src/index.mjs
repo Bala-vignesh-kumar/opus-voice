@@ -23,7 +23,7 @@ import { Notes, SUMMARY_PROMPT, splitSummary } from './notes.mjs';
 import { Todos } from './todos.mjs';
 import { parseTodo } from './todo-commands.mjs';
 import { createIssue } from './github.mjs';
-import { Trigger, FILE as WAKE_FILE } from './trigger.mjs';
+import { Trigger, FILE as WAKE_FILE, HOOK } from './trigger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -370,7 +370,16 @@ voice.on('ready', (event) => {
   pushTodos();
   if (!config.holdMic) {
     voice.standby(mode === MODE.ASLEEP);
-    view.note(`microphone released while asleep — say "hey siri, ${config.siriPhrase}" to wake it`);
+    // Releasing the mic means nothing it can hear will wake it. If the Siri
+    // hook is not installed there is then no way in but typing, and an app that
+    // silently ignores you is the worst possible outcome — so say so loudly.
+    if (fs.existsSync(HOOK)) {
+      view.note(`microphone released while asleep — say "hey siri, ${config.siriPhrase}" to wake it`);
+    } else {
+      view.warn('mic released, but no Siri hook — nothing you say can wake it');
+      view.warn('run:  npm run siri');
+      view.warn('or set "holdMic": true to listen for the wake phrase instead');
+    }
   }
   if (config.greeting) speaker.say(config.greeting);
   view.mode(mode);

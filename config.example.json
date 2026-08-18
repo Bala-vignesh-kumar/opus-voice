@@ -17,5 +17,7 @@
   "wakeWord": true,
   "awakeTimeoutMs": 30000,
   "showIgnored": false,
-  "wakePhrase": "hey falcon"
+  "wakePhrase": "hey falcon",
+  "holdMic": false,
+  "siriPhrase": "falcon"
 }
