@@ -158,7 +158,7 @@ test('the wake word alone wakes it without asking anything', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon');
+    app.type('hey falcon');
     await app.expect('awake');
     await app.settle();
     assert.deepEqual(app.asked(), []);
@@ -169,7 +169,7 @@ test('the name is stripped from a question that carries it', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon, why is my build slow');
+    app.type('hey falcon, why is my build slow');
     await app.expect('This is the stub answer.');
     assert.deepEqual(app.asked(), ['why is my build slow']);
   } finally { app.stop(); }
@@ -182,12 +182,12 @@ test('a discussion is summarized into a titled note under a date folder', async 
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon listen');
+    app.type('hey falcon listen');
     await app.expect('taking notes');
 
     app.type('the catch block marks it processed even when it threw');
     app.type('we should look at issue 421 before changing it');
-    app.type('falcon stop');
+    app.type('hey falcon stop');
 
     await app.expect('notes saved to');
 
@@ -220,10 +220,10 @@ test('the summary request tells Claude to look the ticket up', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon listen');
+    app.type('hey falcon listen');
     await app.expect('taking notes');
     app.type('we should look at issue 421 before changing it');
-    app.type('falcon stop');
+    app.type('hey falcon stop');
     await app.expect('notes saved to');
 
     const prompt = app.asked().find((t) => t.includes('Transcript:'));
@@ -240,7 +240,7 @@ test('note mode never sends the discussion itself to Claude', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon listen');
+    app.type('hey falcon listen');
     await app.expect('taking notes');
     app.type('what do you think about the redis approach');
     await app.settle();
@@ -261,7 +261,7 @@ test('a spoken to-do is added without costing a turn', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon, add a todo to ship the redis fix');
+    app.type('hey falcon, add a todo to ship the redis fix');
     await app.settle();
 
     const items = todosOnDisk(app);
@@ -275,7 +275,7 @@ test('to-dos are completed and removed by the number that was read out', async (
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon, add a todo to ship the redis fix');
+    app.type('hey falcon, add a todo to ship the redis fix');
     app.type('add a todo to write the migration');
     app.type('add a todo to update the docs');
     await app.settle();
@@ -303,7 +303,7 @@ test('an ordinary question is still a question', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon, can you delete the feature branch');
+    app.type('hey falcon, can you delete the feature branch');
     await app.expect('This is the stub answer.');
     assert.deepEqual(app.asked(), ['can you delete the feature branch']);
     assert.equal(todosOnDisk(app).length, 0);
@@ -336,10 +336,10 @@ test('action items from a discussion land on the list', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon listen');
+    app.type('hey falcon listen');
     await app.expect('taking notes');
     app.type('the catch block marks it processed even when it threw');
-    app.type('falcon stop');
+    app.type('hey falcon stop');
     await app.expect('notes saved to');
     await app.settle();
 
@@ -367,14 +367,14 @@ test('action items from a discussion land on the list', async () => {
 // They are covered together because a fix to one used to leave the others
 // broken — note mode in particular ended awake for a long time.
 const SLEEP_ROUTES = [
-  { mode: 'awake', setup: ['falcon'], say: 'stop' },
-  { mode: 'awake', setup: ['falcon'], say: 'sleep' },
-  { mode: 'awake', setup: ['falcon'], say: 'go to sleep' },
-  { mode: 'awake', setup: ['falcon'], say: 'falcon stop' },
+  { mode: 'awake', setup: ['hey falcon'], say: 'stop' },
+  { mode: 'awake', setup: ['hey falcon'], say: 'sleep' },
+  { mode: 'awake', setup: ['hey falcon'], say: 'go to sleep' },
+  { mode: 'awake', setup: ['hey falcon'], say: 'hey falcon stop' },
   { mode: 'chat', setup: ["falcon let's discuss"], say: 'stop' },
   { mode: 'chat', setup: ["falcon let's discuss"], say: 'sleep' },
   { mode: 'chat', setup: ["falcon let's discuss"], say: 'go to sleep' },
-  { mode: 'chat', setup: ["falcon let's discuss"], say: 'falcon stop' },
+  { mode: 'chat', setup: ["falcon let's discuss"], say: 'hey falcon stop' },
 ];
 
 for (const route of SLEEP_ROUTES) {
@@ -396,10 +396,10 @@ test('ending note mode goes to sleep rather than staying awake', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon listen');
+    app.type('hey falcon listen');
     await app.waitForMode('taking notes');
     app.type('the catch block marks it processed even when it threw');
-    app.type('falcon stop');
+    app.type('hey falcon stop');
     await app.expect('notes saved to');
     await app.waitForMode('asleep');
   } finally { app.stop(); }
@@ -409,9 +409,9 @@ test('ending note mode with nothing captured also sleeps', async () => {
   const app = new App();
   try {
     await app.expect('opus voice');
-    app.type('falcon listen');
+    app.type('hey falcon listen');
     await app.waitForMode('taking notes');
-    app.type('falcon stop');
+    app.type('hey falcon stop');
     await app.waitForMode('asleep');
   } finally { app.stop(); }
 });

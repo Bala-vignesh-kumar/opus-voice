@@ -5,9 +5,9 @@ it answers out loud, and you can cut it off mid-sentence the way you would a per
 
 ```
 opus voice · opus · piper neural · on-device en-IN
-  ›  asleep — say "falcon" to wake
+  ›  asleep — say "hey falcon" to wake
 
-you  falcon, why is my build slow?
+you  hey falcon, why is my build slow?
      … "mm, let me think"
 opus It's the cache — it's rebuilding from scratch every run.
      That's most of your build time, and it's a two-line fix.
@@ -21,29 +21,42 @@ leave it running while you work or take a call.
 
 | say | what happens |
 |---|---|
-| **"falcon"** | wakes up and waits for you |
-| **"falcon, why is X slow?"** | wakes and answers in one go |
-| **"falcon listen"** | note mode: captures the discussion silently, never replies |
-| **"falcon let's discuss"** | chat mode: stays awake until you stop it |
-| **"falcon stop"** | back to sleep (ends note mode and writes the summary) |
+| **"hey falcon"** | wakes up and waits for you |
+| **"hey falcon, why is X slow?"** | wakes and answers in one go |
+| **"hey falcon listen"** | note mode: captures the discussion silently, never replies |
+| **"hey falcon let's discuss"** | chat mode: stays awake until you stop it |
+| **"hey falcon stop"** | back to sleep (ends note mode and writes the summary) |
 
 Once it is already listening, the name is optional for commands — "go to sleep"
 or just "stop" works on its own. That only applies to short utterances that are
 nothing but the command, so "how do I stop the dev server" stays a question.
 While asleep, and while taking notes, the name is always required.
 
-Awake and chat both fall asleep after 30 seconds of silence, and need "falcon"
+Awake and chat both fall asleep after 30 seconds of silence, and need the phrase
 again to come back. The countdown starts when it finishes answering, not when
 you finish asking, so a long answer never cuts itself off. Note mode is exempt —
-it sits through a whole discussion and waits for "falcon stop". Typing never
+it sits through a whole discussion and waits for "hey falcon stop". Typing never
 needs a wake word.
 
-The name is matched by edit distance plus a list of common mishearings, since
-recognition returns "Falken" and "Vulcan" often enough to matter. Real words
-inside that radius — *fallen*, *salmon*, *bacon*, *talon* — are blocked outright,
-so ordinary talk doesn't wake it. "falcon" was picked by testing candidates
-through the en-IN recognizer: it came back verbatim in every utterance, from
-every Indian English voice, which is not true of most names.
+It is two words for the same reason Siri and Alexa are. A lone name has to be
+picked out of a stream of unrelated speech, and at that job one short word is
+hopeless — it competes with every similar-sounding word in the language. A
+greeting in front roughly doubles the acoustic evidence, and the pair almost
+never occurs by accident, so the matcher can be generous about how each half is
+heard without waking on ordinary conversation. The name on its own no longer
+wakes it at all.
+
+The greeting can be "hey", "hi", "ok" or "okay", and is matched loosely enough to
+survive coming back as "hay" or run together as "heyfalcon". The name is matched
+by edit distance plus known mishearings ("Falken", "Vulcan"), with real words
+inside that radius — *fallen*, *salmon*, *bacon*, *talon* — blocked outright.
+
+Both halves were chosen by testing them through the en-IN recognizer rather than
+by guessing: "hey falcon" came back verbatim in every utterance, from all three
+Indian English voices, in every phrasing tried.
+
+Change it with `"wakePhrase": "hey jarvis"` in `config.json`. A single word there
+works too, and falls back to the old looser matching.
 
 While asleep it stays silent and writes nothing down. Speech still shows on the
 interim line as it is heard, so you can see the microphone is alive, but it
@@ -55,7 +68,7 @@ Set `"wakeWord": false` to go back to answering everything it hears.
 
 ### Note mode
 
-`falcon listen` captures the conversation without speaking. On `falcon stop` it
+`hey falcon listen` captures the conversation without speaking. On `hey falcon stop` it
 writes `notes/YYYY-MM-DD/<title>.md` in the working directory — a day per folder,
 one titled file per discussion — then reads a two-sentence version aloud.
 
@@ -77,7 +90,7 @@ and never reaches the model.
 
 | you say | it does |
 |---|---|
-| **"falcon, add a todo to ship the redis fix"** | adds it |
+| **"hey falcon, add a todo to ship the redis fix"** | adds it |
 | **"remind me to update the docs"** | adds it |
 | **"what are my todos"** | reads the open ones back, numbered |
 | **"todo two is done"** | completes the second open item |
@@ -316,7 +329,8 @@ three independent guards against it interrupting itself.
 | `narrateTools` | `true` | speak "let me look at that" when a tool runs |
 | `bargeInWords` | `2` | words needed to interrupt |
 | `fillerDelayMs` | `250` | grace period before the thinking beat |
-| `wakeWord` | `true` | require "falcon" before it answers |
+| `wakeWord` | `true` | require the wake phrase before it answers |
+| `wakePhrase` | `hey falcon` | what wakes it |
 | `awakeTimeoutMs` | `30000` | silence in awake or chat before it sleeps again |
 | `locale` | `en-IN` | accent the recognizer listens for |
 | `ui` | `false` | open the desktop window (`npm run app` sets it) |

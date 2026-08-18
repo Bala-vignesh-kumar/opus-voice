@@ -50,6 +50,7 @@ export class Ui {
     this.status = null;
     this.lastSpeaker = null;
     this.printed = false;   // has any transcript line been written yet
+    this.phrase = 'hey falcon';   // replaced by the banner, which knows the config
   }
 
   /** Usable text width, leaving the gutter and a right margin. */
@@ -79,7 +80,8 @@ export class Ui {
     this.print(body.map((line, i) => `${i === 0 ? head : pad}${open}${line}${close}`).join('\n'));
   }
 
-  banner({ voice, model, onDevice, workdir, engine, locale, recognizer }) {
+  banner({ voice, model, onDevice, workdir, engine, locale, recognizer, wakePhrase }) {
+    if (wakePhrase) this.phrase = wakePhrase;
     const quality = onDevice ? 'on-device' : 'server-based';
     const spoken = engine === 'piper' ? 'piper neural' : voice;
     // Which recognizer is running is the single biggest factor in how well it
@@ -121,10 +123,10 @@ export class Ui {
   /** Announces a mode change and parks it on the live line. */
   mode(name) {
     const labels = {
-      asleep: `${C.grey}asleep — say "falcon" to wake${C.reset}`,
+      asleep: `${C.grey}asleep — say "${this.phrase}" to wake${C.reset}`,
       awake: `${C.green}awake${C.reset}`,
       chat: `${C.green}chat${C.reset}`,
-      note: `${C.amber}taking notes${C.reset} ${C.grey}— say "falcon stop" to finish${C.reset}`,
+      note: `${C.amber}taking notes${C.reset} ${C.grey}— say "${this.phrase} stop" to finish${C.reset}`,
     };
     // A mode change is a scene break, so it gets air above it — except as the
     // very first line, where the banner has already left a gap.

@@ -25,6 +25,7 @@ let mode = 'asleep';
 let status = null;
 let speaking = false;
 let todos = [];
+let phrase = 'hey falcon';
 let showDone = false;
 
 // ---------------------------------------------------------------- rendering
@@ -79,9 +80,9 @@ function paintState() {
 
   if (speaking) { kind = 'speaking'; label = 'speaking'; }
   else if (status) { kind = 'thinking'; label = status; }
-  else if (mode === 'note') { kind = 'notes'; label = 'listening — say "falcon stop" to finish'; }
+  else if (mode === 'note') { kind = 'notes'; label = `listening — say "${phrase} stop" to finish`; }
   else if (mode === 'chat' || mode === 'awake') { kind = 'listening'; label = 'listening'; }
-  else { label = 'asleep — say "falcon" to wake'; }
+  else { label = `asleep — say "${phrase}" to wake`; }
 
   orb.className = `orb ${kind}`;
   document.querySelector('.empty .orb').className = `orb ${kind}`;
@@ -201,7 +202,14 @@ function paintTodos() {
   }
 }
 
-function info({ model, engine, locale, onDevice, workdir }) {
+function info({ model, engine, locale, onDevice, workdir, wakePhrase }) {
+  if (wakePhrase) {
+    phrase = wakePhrase;
+    const hint = document.querySelector('.empty p');
+    if (hint) hint.innerHTML = `Say <b></b> to wake it.`;
+    if (hint) hint.querySelector('b').textContent = phrase;
+    paintState();
+  }
   const bits = [model, engine, `${onDevice ? 'on-device' : 'server'} ${locale}`, workdir];
   metaEl.textContent = bits.filter(Boolean).join('  ·  ');
   metaEl.title = workdir ?? '';

@@ -18,7 +18,7 @@ import { Conversation } from './bus.mjs';
 import { makeView } from './view.mjs';
 import { UiServer } from './server.mjs';
 import { loadConfig, resolveWorkdir } from './config.mjs';
-import { parseWake, parseCommand } from './wake.mjs';
+import { parseWake, parseCommand, setWakePhrase, wakePhrase } from './wake.mjs';
 import { Notes, SUMMARY_PROMPT, splitSummary } from './notes.mjs';
 import { Todos } from './todos.mjs';
 import { parseTodo } from './todo-commands.mjs';
@@ -29,6 +29,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const config = loadConfig();
 const workdir = resolveWorkdir(config);
+setWakePhrase(config.wakePhrase);
 
 const ui = new Ui();
 // The conversation as data. The terminal renders it as it happens; the window
@@ -160,7 +161,7 @@ function armSleep() {
 
 function startNotes() {
   notes.start();
-  setMode(MODE.NOTE, "okay, I'm taking notes. Say falcon stop when you're done.");
+  setMode(MODE.NOTE, `okay, I'm taking notes. Say ${wakePhrase()} stop when you're done.`);
 }
 
 function finishNotes() {
@@ -356,6 +357,7 @@ voice.on('ready', (event) => {
     engine: speaker.name,
     locale: event.locale,
     recognizer: event.recognizer,
+    wakePhrase: wakePhrase(),
   });
   if (!event.onDevice) {
     view.warn('on-device speech model missing — recognition is going over the network');
@@ -369,7 +371,13 @@ voice.on('ready', (event) => {
   for (const line of backlog) handleUtterance(line, { typed: true });
 });
 
-voice.on('partial', (text) => view.hearing(text));
+voice.on('partial', (text) => {
+  // Asleep it shows nothing at all. A live transcript of the room scrolling past
+  // is exactly the "it is still listening" feeling that sleeping exists to
+  // remove, and there is nothing to report until the phrase arrives.
+  if (mode === MODE.ASLEEP && !config.showIgnored) return;
+  view.hearing(text);
+});
 
 voice.on('final', (text) => {
   view.clearLive();

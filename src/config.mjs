@@ -22,9 +22,10 @@ export const DEFAULTS = {
   endpointFastMs: 400,      // silence needed when you clearly finished a sentence
   bargeInWords: 2,          // words needed to interrupt, guards against stray noise
   fillerDelayMs: 250,       // grace period before the "let me think" beat
-  wakeWord: true,           // require "falcon" before it answers anything
+  wakeWord: true,           // require the wake phrase before it answers anything
+  wakePhrase: 'hey falcon', // two words on purpose — see src/wake.mjs
   awakeTimeoutMs: 30000,    // silence in awake or chat mode before it sleeps again
-  greeting: 'Say falcon when you need me.',
+  greeting: 'Say hey falcon when you need me.',
   showIgnored: false,       // record speech heard while asleep in the transcript
 
   ui: false,                // open the desktop window (npm run app sets this)
