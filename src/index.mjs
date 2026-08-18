@@ -136,6 +136,14 @@ function setMode(next, spoken) {
 }
 
 /**
+ * Goes to sleep, announcing it only if it was awake. Being told "going to
+ * sleep" by something that was already asleep reads like it ignored you.
+ */
+function sleep() {
+  setMode(MODE.ASLEEP, mode === MODE.ASLEEP ? null : 'going to sleep.');
+}
+
+/**
  * Restarts the idle countdown. Awake and chat both sleep on silence — being
  * woken and then forgotten shouldn't leave it answering the room all day.
  * Note mode is exempt: it exists to sit through a long discussion.
@@ -183,7 +191,7 @@ function handleUtterance(text, { typed = false } = {}) {
     switch (parsed.command) {
       case 'note': startNotes(); return;
       case 'chat': setMode(MODE.CHAT, "sure, let's talk."); return;
-      case 'stop': setMode(MODE.ASLEEP, 'going to sleep.'); return;
+      case 'stop': sleep(); return;
       case 'summarize': setMode(MODE.AWAKE, "there's nothing to summarize yet."); return;
       case 'ask':
         if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, null);
@@ -196,11 +204,14 @@ function handleUtterance(text, { typed = false } = {}) {
   }
 
   // Already listening to you: "go to sleep" should end the conversation rather
-  // than become a question about sleep. Asleep is excluded so the room can say
-  // "stop" to each other without waking anything.
-  if (mode !== MODE.ASLEEP) {
+  // than become a question about sleep. Asleep is excluded for speech so the
+  // room can say "stop" to each other without waking anything — but typing is
+  // deliberate. Without the `typed` escape, typing "stop" at a sleeping app
+  // falls through to the question path below and asks Claude about the word
+  // "stop", which is the exact opposite of what was asked for.
+  if (mode !== MODE.ASLEEP || typed) {
     switch (parseCommand(text)) {
-      case 'stop': setMode(MODE.ASLEEP, 'going to sleep.'); return;
+      case 'stop': sleep(); return;
       case 'note': startNotes(); return;
       case 'chat': setMode(MODE.CHAT, "sure, let's talk."); return;
       default: break;   // 'summarize' has nothing to summarize outside note mode
@@ -383,7 +394,7 @@ function handleCommand(command) {
       else if (command.mode === 'note') startNotes();
       else if (command.mode === 'stop') {
         if (mode === MODE.NOTE) finishNotes();
-        else setMode(MODE.ASLEEP, 'going to sleep.');
+        else sleep();
       }
       break;
     case 'interrupt':

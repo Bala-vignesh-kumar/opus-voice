@@ -25,7 +25,8 @@ export class ClaudeSession extends EventEmitter {
     this.busy = false;
     this.blocks = new Map();   // stream index -> content block type
 
-    this.child = spawn('claude', [
+    // Overridable so an end-to-end test can run without a real Claude session.
+    this.child = spawn(process.env.OPUS_VOICE_CLAUDE_BIN || 'claude', [
       '--print',
       '--model', model,
       '--effort', effort,

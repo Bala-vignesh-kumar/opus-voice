@@ -8,3 +8,6 @@ config.json
 
 # Captured discussions. Yours, not the repo's.
 notes/
+
+# macOS finder droppings.
+.DS_Store

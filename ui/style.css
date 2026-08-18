@@ -13,6 +13,34 @@
   --amber: #e0b473;
   --red: #f08c86;
   --radius: 12px;
+  --measure: 720px;
+  --sunken: #0b0c0f;
+  --hover: #1b1e24;
+  --edge: #333842;
+  --ring-live: #2c4436;
+  --ring-note: #4a3d28;
+}
+
+/* Dark is the default because this usually sits alongside a terminal, but a
+   window you glance at all day in a bright room needs the other one too. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fbfbfc;
+    --raised: #f2f3f5;
+    --line: #e0e2e6;
+    --text: #1b1d21;
+    --soft: #5c626c;
+    --faint: #8b919b;
+    --you: #2f6dc4;
+    --opus: #1f7a4d;
+    --amber: #9a6b1e;
+    --red: #c0392f;
+    --sunken: #ffffff;
+    --hover: #e8eaee;
+    --edge: #c4c8ce;
+    --ring-live: #b3d6c1;
+    --ring-note: #e0cba6;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -27,7 +55,7 @@ body {
   flex-direction: column;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.6 ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font: 15.5px/1.65 ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -76,21 +104,21 @@ header {
   font-size: 12px;
   letter-spacing: 0.02em;
 }
-.mode[data-mode="chat"], .mode[data-mode="awake"] { color: var(--opus); border-color: #2c4436; }
-.mode[data-mode="note"] { color: var(--amber); border-color: #4a3d28; }
+.mode[data-mode="chat"], .mode[data-mode="awake"] { color: var(--opus); border-color: var(--ring-live); }
+.mode[data-mode="note"] { color: var(--amber); border-color: var(--ring-note); }
 
 /* ---------------------------------------------------------------- stream */
 
 main {
   flex: 1;
   overflow-y: auto;
-  padding: 26px 20px 8px;
+  padding: 28px 24px 10px;
   scroll-behavior: smooth;
 }
 
 .turn {
-  max-width: 680px;
-  margin: 0 auto 20px;
+  max-width: var(--measure);
+  margin: 0 auto 22px;
   animation: rise 0.28s ease-out;
 }
 
@@ -110,8 +138,15 @@ main {
 .turn.you .who { color: var(--you); }
 .turn.opus .who { color: var(--opus); }
 
-.turn.opus .text { font-size: 16.5px; line-height: 1.65; }
-.turn.you .text { color: #cdd2d9; }
+.turn.opus .text { font-size: 17px; line-height: 1.7; }
+
+.turn.you .text {
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 13px;
+}
 
 /* Everything that is not conversation stays visually subordinate to it. */
 .turn.system .text,
@@ -147,10 +182,12 @@ main {
 
 /* ---------------------------------------------------------------- live */
 
+/* Padded to match main's gutter so the interim line sits in the same column as
+   the turns above it rather than a few pixels inboard. */
 .live {
-  max-width: 680px;
+  max-width: calc(var(--measure) + 48px);
   margin: 0 auto;
-  padding: 0 20px 10px;
+  padding: 0 24px 10px;
   width: 100%;
   color: var(--soft);
   font-size: 15px;
@@ -198,14 +235,19 @@ button {
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-button:hover { color: var(--text); border-color: #333842; background: #1b1e24; }
+button:hover { color: var(--text); border-color: var(--edge); background: var(--hover); }
 button:active { transform: translateY(1px); }
 
 #composer { grid-area: composer; }
 
+:focus-visible {
+  outline: 2px solid var(--you);
+  outline-offset: 2px;
+}
+
 input {
   width: 100%;
-  background: #0b0c0f;
+  background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   color: var(--text);
@@ -214,7 +256,7 @@ input {
   outline: none;
   transition: border-color 0.15s;
 }
-input:focus { border-color: #39414d; }
+input:focus { border-color: var(--edge); }
 input::placeholder { color: var(--faint); }
 
 /* The orb is the one piece of state you can read without reading: still when
