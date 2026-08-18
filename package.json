@@ -9,6 +9,7 @@
   "scripts": {
     "build": "./build.sh",
     "start": "node src/index.mjs",
+    "app": "node src/index.mjs --ui",
     "test": "node --test 'test/*.test.mjs'",
     "voices": "node scripts/voices.mjs",
     "mic-test": "node scripts/mic-test.mjs",

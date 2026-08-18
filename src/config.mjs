@@ -25,6 +25,8 @@ export const DEFAULTS = {
   wakeWord: true,           // require "jarvis" before it answers anything
   awakeTimeoutMs: 30000,    // silence in awake or chat mode before it sleeps again
   greeting: 'Say jarvis when you need me.',
+  ui: false,                // open the desktop window (npm run app sets this)
+  uiPort: 4477,             // loopback port for the window; steps up if taken
 };
 
 export function loadConfig(argv = process.argv.slice(2)) {
@@ -44,6 +46,19 @@ export function loadConfig(argv = process.argv.slice(2)) {
     if (!match) continue;
     const key = match[1].replace(/-(\w)/g, (_, c) => c.toUpperCase());
     if (!(key in config)) continue;
+    // A boolean flag stands alone: `--ui` means on, and `--ui false` turns it
+    // off, so a bare flag never swallows the next argument as its value.
+    if (typeof DEFAULTS[key] === 'boolean') {
+      const next = argv[i + 1];
+      if (next === 'true' || next === 'false') {
+        config[key] = next === 'true';
+        i += 1;
+      } else {
+        config[key] = true;
+      }
+      continue;
+    }
+
     const value = argv[i + 1];
     config[key] = typeof DEFAULTS[key] === 'number' ? Number(value) : value;
     i += 1;

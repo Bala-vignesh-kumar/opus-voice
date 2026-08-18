@@ -6,12 +6,17 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+import { spawn } from 'node:child_process';
+
 import { ClaudeSession } from './claude.mjs';
 import { VoiceIO } from './voice.mjs';
 import { SpeechChunker } from './chunk.mjs';
 import { nextFiller, narrate } from './style.mjs';
 import { Speaker } from './speaker.mjs';
 import { Ui } from './ui.mjs';
+import { Conversation } from './bus.mjs';
+import { makeView } from './view.mjs';
+import { UiServer } from './server.mjs';
 import { loadConfig, resolveWorkdir } from './config.mjs';
 import { parseWake, parseCommand } from './wake.mjs';
 import { Notes, SUMMARY_PROMPT, splitSummary } from './notes.mjs';
@@ -23,6 +28,11 @@ const config = loadConfig();
 const workdir = resolveWorkdir(config);
 
 const ui = new Ui();
+// The conversation as data. The terminal renders it as it happens; the window
+// needs to be able to ask for all of it at once, so it is kept rather than
+// printed and forgotten.
+const conversation = new Conversation();
+const view = makeView(ui, conversation);
 const voice = new VoiceIO({ locale: config.locale });
 const claude = new ClaudeSession({
   model: config.model,
@@ -31,7 +41,7 @@ const claude = new ClaudeSession({
   permissionMode: config.permissionMode,
 });
 const speaker = new Speaker(voice, { engine: config.tts, piperVoice: config.piperVoice });
-speaker.on('warn', (message) => ui.warn(message));
+speaker.on('warn', (message) => view.warn(message));
 const chunker = new SpeechChunker();
 const notes = new Notes();
 
@@ -75,7 +85,7 @@ function ask(text, { silent = false } = {}) {
   }
   turn.silent = silent;
   turn.raw = '';
-  if (!silent) ui.you(text);
+  if (!silent) view.you(text);
   chunker.reset();
   turn.spoke = false;
   turn.aborted = false;
@@ -84,13 +94,16 @@ function ask(text, { silent = false } = {}) {
   turn.tools = 0;
   turn.asked = Date.now();
   claude.send(text);
-  ui.spin('thinking');
+  view.spin('thinking');
 
   // The filler only fires if Opus hasn't produced a first sentence yet, so a
   // fast answer never gets a needless "hmm" in front of it.
   clearTimeout(turn.fillerTimer);
   turn.fillerTimer = setTimeout(() => {
-    if (!turn.spoke && !turn.aborted) speaker.say(nextFiller());
+    // Matched to what was asked: "sure" for an instruction, a thinking beat for
+    // a question. "Let me think about that" in reply to "open the file" sounds
+    // like it misheard.
+    if (!turn.spoke && !turn.aborted) speaker.say(nextFiller(text));
   }, config.fillerDelayMs);
 }
 
@@ -100,13 +113,13 @@ function say(sentence) {
   // `spoke` gates the thinking filler and narration also sets it; the transcript
   // label is tracked separately so the first real sentence still gets labelled.
   const first = !turn.labelled;
-  if (first && TIMING) ui.note(`(first word in ${Date.now() - turn.asked}ms)`);
+  if (first && TIMING) view.note(`(first word in ${Date.now() - turn.asked}ms)`);
   turn.labelled = true;
   turn.spoke = true;
   clearTimeout(turn.fillerTimer);
   turn.line = sentence;
-  ui.opus(sentence, first);
-  ui.spin('speaking');
+  view.opus(sentence, first);
+  view.spin('speaking');
   speaker.say(sentence);
 }
 
@@ -117,7 +130,7 @@ function setMode(next, spoken) {
   mode = next;
   // Called on every question to refresh the idle timer, so only announce a
   // genuine transition.
-  if (changed) ui.mode(next);
+  if (changed) view.mode(next);
   armSleep();
   if (spoken) speaker.say(spoken);
 }
@@ -147,7 +160,7 @@ function finishNotes() {
   }
   const transcript = notes.transcript();
   setMode(MODE.AWAKE, null);
-  ui.note(`summarizing ${notes.count} utterances…`);
+  view.note(`summarizing ${notes.count} utterances…`);
   pendingSummary = true;
   ask(SUMMARY_PROMPT + transcript, { silent: true });
 }
@@ -162,7 +175,7 @@ function handleUtterance(text, { typed = false } = {}) {
       return;
     }
     notes.add(text);
-    ui.heard(text);
+    view.heard(text);
     return;
   }
 
@@ -196,7 +209,7 @@ function handleUtterance(text, { typed = false } = {}) {
 
   // Typing is deliberate, so it never needs a wake word.
   if (mode === MODE.ASLEEP && !typed) {
-    ui.ignored(text);
+    view.ignored(text);
     return;
   }
   if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, null);
@@ -217,7 +230,7 @@ voice.on('ready', (event) => {
     endpointFastMs: config.endpointFastMs,
     bargeInWords: config.bargeInWords,
   });
-  ui.banner({
+  view.banner({
     voice: event.voice,
     model: config.model,
     onDevice: event.onDevice,
@@ -226,20 +239,20 @@ voice.on('ready', (event) => {
     locale: event.locale,
   });
   if (!event.onDevice) {
-    ui.warn('on-device speech model missing — recognition is going over the network');
+    view.warn('on-device speech model missing — recognition is going over the network');
   }
   if (config.greeting) speaker.say(config.greeting);
-  ui.mode(mode);
+  view.mode(mode);
 
   started = true;
   const backlog = typedBacklog.splice(0);
   for (const line of backlog) handleUtterance(line, { typed: true });
 });
 
-voice.on('partial', (text) => ui.hearing(text));
+voice.on('partial', (text) => view.hearing(text));
 
 voice.on('final', (text) => {
-  ui.clearLive();
+  view.clearLive();
   handleUtterance(text);
 });
 
@@ -249,14 +262,17 @@ voice.on('bargein', () => {
   clearTimeout(turn.fillerTimer);
   speaker.stop();
   chunker.flush();
-  if (turn.line) ui.note('(interrupted)');
+  if (turn.line) view.interrupted();
 });
+
+voice.on('speech-start', () => view.speaking(true));
 
 voice.on('speech-end', () => {
-  if (!claude.busy && !voice.speaking) ui.clearLive();
+  view.speaking(false);
+  if (!claude.busy && !voice.speaking) view.clearLive();
 });
 
-voice.on('warn', (message) => ui.warn(message));
+voice.on('warn', (message) => view.warn(message));
 
 // Recognition failing looks identical to nobody talking, so say it out loud
 // once rather than leaving the user staring at a prompt that never responds.
@@ -264,15 +280,15 @@ let recogReported = false;
 voice.on('recog-error', (event) => {
   if (recogReported) return;
   recogReported = true;
-  ui.error(`speech recognition failed: ${event.message}`);
+  view.error(`speech recognition failed: ${event.message}`);
   if (/siri|dictation/i.test(event.message)) {
-    ui.note('fix: System Settings › Keyboard › Dictation → turn it on, wait for the');
-    ui.note('language download to finish, then restart. Run `npm run mic-test` to verify.');
+    view.note('fix: System Settings › Keyboard › Dictation → turn it on, wait for the');
+    view.note('language download to finish, then restart. Run `npm run mic-test` to verify.');
   }
 });
 
 voice.on('error', (err) => {
-  ui.error(err.message);
+  view.error(err.message);
   if (err.fatal) shutdown(1);
 });
 
@@ -286,7 +302,7 @@ claude.on('tool', (name) => {
   if (turn.aborted) return;
   const first = turn.tools === 0;
   turn.tools += 1;
-  ui.spin(`${name.toLowerCase()}…`);
+  view.tool(name);
   clearTimeout(turn.fillerTimer);
 
   if (!config.narrateTools) return;
@@ -313,7 +329,7 @@ claude.on('text-end', () => {
 claude.on('turn-end', () => {
   for (const sentence of chunker.flush()) say(sentence);
   clearTimeout(turn.fillerTimer);
-  if (!voice.speaking) ui.clearLive();
+  if (!voice.speaking) view.clearLive();
   // The countdown measures silence after the answer, not after the question —
   // a long answer must not put it to sleep while it is still talking.
   armSleep();
@@ -324,10 +340,10 @@ claude.on('turn-end', () => {
     const { written, spoken } = splitSummary(turn.raw);
     try {
       const file = notes.save(workdir, written);
-      ui.note(`notes saved to ${file}`);
+      view.note(`notes saved to ${file}`);
       speaker.say(spoken || 'Notes saved.');
     } catch (err) {
-      ui.error(`could not save notes: ${err.message}`);
+      view.error(`could not save notes: ${err.message}`);
     }
   }
 
@@ -338,11 +354,70 @@ claude.on('turn-end', () => {
   }
 });
 
-claude.on('error', (err) => ui.error(err.message));
+claude.on('error', (err) => view.error(err.message));
 claude.on('exit', (code) => {
-  ui.error(`claude exited (code ${code})`);
+  view.error(`claude exited (code ${code})`);
   shutdown(1);
 });
+
+// MARK: the window
+
+// The window is another way in, not another brain: everything it sends lands in
+// the same handleUtterance the microphone feeds, so there is one set of rules
+// about what wakes it, what it answers, and when it sleeps.
+let server = null;
+let shell = null;
+
+function handleCommand(command) {
+  switch (command?.cmd) {
+    case 'say':
+      // Typed from the window: deliberate, so it skips the wake word exactly as
+      // typing into the terminal does.
+      if (typeof command.text === 'string' && command.text.trim()) {
+        handleUtterance(command.text.trim(), { typed: true });
+      }
+      break;
+    case 'mode':
+      if (command.mode === 'chat') setMode(MODE.CHAT, "sure, let's talk.");
+      else if (command.mode === 'note') startNotes();
+      else if (command.mode === 'stop') {
+        if (mode === MODE.NOTE) finishNotes();
+        else setMode(MODE.ASLEEP, 'going to sleep.');
+      }
+      break;
+    case 'interrupt':
+      // The same thing talking over it does, for when you would rather not.
+      turn.aborted = true;
+      clearTimeout(turn.fillerTimer);
+      speaker.stop();
+      chunker.flush();
+      if (turn.line) view.interrupted();
+      break;
+    default:
+      break;
+  }
+}
+
+async function openWindow() {
+  server = new UiServer(conversation, handleCommand, { port: config.uiPort });
+  const url = await server.listen();
+
+  const binary = path.join(ROOT, 'bin/voiceapp');
+  if (fs.existsSync(binary)) {
+    shell = spawn(binary, [url], { stdio: 'ignore' });
+    // Closing the window ends the session — it is the whole interface when you
+    // launched it this way.
+    shell.on('exit', () => shutdown(0));
+    shell.on('error', () => view.warn(`window failed to open — visit ${url}`));
+  } else {
+    view.warn('bin/voiceapp is not built — opening in your browser instead');
+    spawn('open', [url], { stdio: 'ignore' });
+  }
+  // Printed so a second window, or a browser, can be pointed at the same
+  // session — the token is what makes the URL work.
+  view.note(`window at ${url}`);
+  return url;
+}
 
 // MARK: typed input + shutdown
 
@@ -361,7 +436,9 @@ function shutdown(code = 0) {
   if (closing) return;
   closing = true;
   clearTimeout(turn.fillerTimer);
-  ui.close();
+  view.close();
+  server?.close();
+  shell?.kill();
   keyboard.close();
   speaker.close();
   voice.close();
@@ -371,3 +448,9 @@ function shutdown(code = 0) {
 
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
+
+// Opened before the audio device is ready so there is a window to look at while
+// permissions and the recognizer come up, rather than ten seconds of nothing.
+if (config.ui) {
+  openWindow().catch((err) => view.error(`could not open the window: ${err.message}`));
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>opus voice</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="title">
+      <span class="dot" id="link-dot" title="connection"></span>
+      opus voice
+    </div>
+    <div class="meta" id="meta"></div>
+    <div class="mode" id="mode">asleep</div>
+  </header>
+
+  <main id="stream">
+    <div class="empty" id="empty">
+      <div class="orb idle"></div>
+      <p>Say <b>jarvis</b> to wake it.</p>
+    </div>
+  </main>
+
+  <div class="live" id="live" hidden></div>
+
+  <footer>
+    <div class="state" id="state">
+      <span class="orb idle" id="orb"></span>
+      <span class="label" id="state-label">asleep</span>
+    </div>
+    <div class="controls">
+      <button data-cmd="chat">Discuss</button>
+      <button data-cmd="note">Take notes</button>
+      <button data-cmd="stop">Sleep</button>
+    </div>
+    <form id="composer">
+      <input id="input" type="text" placeholder="or type instead of talking…" autocomplete="off" spellcheck="false">
+    </form>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
