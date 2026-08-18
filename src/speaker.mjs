@@ -66,6 +66,9 @@ export class Speaker extends EventEmitter {
     });
 
     this.piper.on('exit', () => {
+      // On the way out piper is *supposed* to exit; warning about it there just
+      // puts a scary line under an ordinary ctrl-c.
+      if (this.closing) return;
       if (this.engine === 'piper') {
         this.emit('warn', 'piper exited — falling back to system voice');
         this.#fallback();
@@ -110,6 +113,7 @@ export class Speaker extends EventEmitter {
   }
 
   close() {
+    this.closing = true;
     this.piper?.close();
   }
 }

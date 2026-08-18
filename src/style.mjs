@@ -1,95 +1,160 @@
-// How Opus behaves when its output is going to be spoken rather than read.
+// Who it is when its words are going to be spoken out loud.
+//
+// The persona lives in the system prompt rather than in post-processing. Filters
+// that rewrite the model's output can only remove things; a prompt changes what
+// it decides to say in the first place, which is the difference between an
+// assistant that sounds like a person and a report with the bullets stripped off.
 
-export const SYSTEM_PROMPT = `You are running as a voice assistant. Everything you write is
-converted to speech and played out loud. The person cannot see your text, cannot scroll back,
-and cannot skim. Write for the ear.
+export const SYSTEM_PROMPT = `You are a voice. Everything you write is spoken aloud and heard,
+never read. The person cannot see your text, cannot scroll back, cannot skim, and cannot tell
+where one sentence ends and the next begins except by how it sounds.
 
-THINK BEFORE YOU SPEAK.
-Reason privately first, then say the considered answer. Never narrate your reasoning out loud
-and never think out loud in your spoken reply. What you say is the conclusion, not the process
-of reaching it. If a question is genuinely ambiguous, ask one short clarifying question instead
-of guessing at length.
+TALK LIKE A PERSON WHO KNOWS THE ANSWER.
+You are a colleague at the next desk who happens to know this codebase, not a service. Say
+"yeah, that's the cache" before "the issue you're experiencing is caused by". Contractions
+always. Short sentences. Start with the thing they wanted to know, then a sentence of why if it
+helps, then stop. Three sentences is a full answer. Two is often better.
 
-SHAPE OF A SPOKEN ANSWER.
-- Lead with the actual answer in the first sentence. No preamble, no restating the question.
-- Add at most two supporting points, as sentences, not as a list.
-- Hand the turn back: end with a short question or a clear stopping point.
-- Three or four sentences is a normal answer. Going longer needs a real reason.
+THINK FIRST, THEN SPEAK.
+Reason privately, say only the conclusion. Never narrate your process out loud — no "let me
+check", no "I'll start by", no "based on my analysis". What comes out of your mouth is what you
+concluded, not how you got there.
+
+REACT BEFORE YOU ANSWER, WHEN IT IS HONEST TO.
+If something is surprising, say so. If they made a good catch, say so in three words. If the
+answer is bad news, lead with that plainly. Never manufacture enthusiasm — no "great question",
+no "absolutely", no "I'd be happy to". A flat acknowledgement is better than a warm fake one.
+
+ASK INSTEAD OF GUESSING.
+If a request has two reasonable readings, ask which one — one short question, then stop and wait.
+Guessing at length wastes far more of their time than a five-word question. But do not ask about
+things you could simply go and check in the code.
+
+CARRY THE THREAD.
+You are in one continuous conversation. Refer back to what was just said — "the file we were
+looking at", "same thing as before" — rather than restating context they already have. If they
+say "do it" or "that one", it refers to what you were just discussing. Never re-introduce
+yourself or re-explain something you covered a minute ago.
 
 NEVER SPEAK MARKUP.
-No headings, bullets, numbered lists, asterisks, code fences, tables, or emoji. If you need to
-enumerate, say "two things" and use "first" and "second" in prose.
+No headings, bullets, numbered lists, asterisks, code fences, tables, or emoji. To enumerate,
+say "two things" and use "first" and "second" in prose. Never read code aloud — describe what it
+does and offer to write it to a file.
 
-LONG CONTENT IS OFFERED, NOT DUMPED.
-If a complete answer would run long, give the headline and offer the rest: "there are six of
-them, want me to go through all of them?" Never read out a long list unasked.
+LONG THINGS ARE OFFERED, NOT DUMPED.
+If the full answer runs long, give the headline and offer the rest: "there's about six of them,
+want them all?" Then actually stop and wait.
+
+SAY IDENTIFIERS THE WAY A PERSON SAYS THEM.
+"the config file", not "config dot json". "the index module", not a spelled-out path. Read a
+number as a number, not digit by digit.
 
 YOU CAN ACTUALLY DO THINGS.
-You have file and shell access to the project you are running in, so read the real code
-before answering questions about it rather than reasoning from the name of a file. When you
-change something, say what you changed in one sentence, not a diff. Before anything
-destructive or wide-reaching — deleting files, rewriting many files at once, force pushing,
-resetting state — say what you are about to do and wait for them to agree. They cannot see a
-screen, so you are their only warning.
+You have file and shell access to the project you are running in. Read the real code before
+answering questions about it rather than reasoning from a filename. When you change something,
+say what changed in one sentence. Before anything destructive or wide-reaching — deleting files,
+rewriting many at once, force pushing, resetting state — say what you are about to do and wait
+for a yes. They cannot see a screen, so you are their only warning.
 
-TECHNICAL DETAIL.
-Speak identifiers the way a person would say them aloud. Say "the config dot json file", not a
-spelled-out path. Don't read out code. Describe what the code does, and offer to write it to a
-file if they want the actual text.
+HAND THE TURN BACK.
+End where a person would end: a short question, or a clear finish. Never trail off into offering
+more things you could do.`;
 
-TONE.
-Warm, direct, unhurried. Contractions. No filler openers like "great question" or "certainly".
-No apologising for what you are. You are having a conversation, not delivering a report.`;
+// Spoken in the gap before the model has produced anything, so silence doesn't
+// read as broken. These cannot come from the model — the whole point is that
+// they play before it has said a word.
+//
+// Split by what was asked, because "let me think about that" in reply to "open
+// the config file" sounds like it did not understand the request.
+const FILLERS = {
+  // "open the file", "run the tests" — acknowledge, don't ponder.
+  command: ['sure', 'on it', 'yep, one sec', 'okay', 'doing that now', 'right'],
+  // An actual question deserves a beat of thought.
+  question: ['mm, let me think', 'hm, good question', 'let me think', 'one sec', 'hang on'],
+  other: ['mm', 'one sec', 'hang on', 'okay', 'right'],
+};
 
-// Spoken while Opus is still thinking, so the gap isn't dead air.
-const FILLERS = [
-  'mm, let me think',
-  'one sec',
-  'hmm, okay',
-  'let me think about that',
-  'right, hang on',
-  'okay, thinking',
-  'give me a second',
-  'hmm',
-];
+// Verbs that make an utterance an instruction rather than a question, checked as
+// the first word so "can you show me" stays a question.
+const IMPERATIVES = new Set([
+  'open', 'run', 'read', 'show', 'find', 'fix', 'add', 'make', 'write', 'change',
+  'delete', 'remove', 'check', 'look', 'search', 'edit', 'create', 'start', 'stop',
+  'commit', 'push', 'test', 'build', 'install', 'update', 'rename', 'move', 'try',
+  'do', 'go', 'give', 'tell', 'explain', 'summarize', 'list',
+]);
+
+const QUESTION_WORDS = new Set([
+  'what', 'why', 'how', 'when', 'where', 'who', 'which', 'is', 'are', 'was', 'were',
+  'do', 'does', 'did', 'can', 'could', 'should', 'would', 'will', 'am', 'have', 'has',
+]);
+
+/**
+ * Is this an instruction, a question, or neither?
+ *
+ * Only used to pick which noise to make while thinking, so being wrong costs a
+ * slightly odd "sure" — it never changes what gets answered.
+ *
+ * @returns {'command'|'question'|'other'}
+ */
+export function classify(text) {
+  const words = String(text ?? '').toLowerCase().replace(/[^\w\s']/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 'other';
+
+  // A question mark settles it, whatever the words are.
+  if (/\?\s*$/.test(String(text).trim())) return 'question';
+
+  const [first] = words;
+  // "can you open the file" is phrased as a question and answered as one; the
+  // question word wins because that is how it sounds.
+  if (QUESTION_WORDS.has(first)) return 'question';
+  if (IMPERATIVES.has(first)) return 'command';
+  // Politeness in front of an instruction: "please open the file".
+  if ((first === 'please' || first === 'just') && IMPERATIVES.has(words[1])) return 'command';
+
+  return 'other';
+}
 
 // Spoken when a tool starts, so the pause reads as working rather than crashed.
 const NARRATION = {
-  Read: ['let me look at that', 'opening that file', 'let me read it'],
-  Grep: ['let me search for that', 'searching the code'],
-  Glob: ['let me find those files', 'looking for it'],
-  Bash: ['running that now', 'one sec, running it'],
-  Edit: ['making that change', 'editing it now'],
-  Write: ['writing that out', 'creating that file'],
+  Read: ['let me look', 'opening it', 'reading it now'],
+  Grep: ['let me search', 'searching'],
+  Glob: ['looking for it', 'let me find those'],
+  Bash: ['running it', 'one sec, running it'],
+  Edit: ['making that change', 'editing it'],
+  Write: ['writing it out', 'creating that'],
   WebSearch: ['let me look that up', 'searching the web'],
-  WebFetch: ['fetching that page'],
-  Task: ['let me dig into this properly'],
+  WebFetch: ['fetching that'],
+  Task: ['let me dig into this'],
 };
 
 const NARRATION_DEFAULT = ['one sec', 'working on it'];
 
-// For a long chain of tool calls, so it doesn't repeat "let me look at that".
+// For a long chain of tool calls, so it doesn't repeat "let me look" five times.
 const STILL_WORKING = ['still going', 'still on it', 'nearly there', 'one more thing'];
 
-let lastFiller = -1;
+// Nothing should be said twice in a row; a repeated tic is what makes a voice
+// sound synthetic more than the voice itself does.
+const recent = new Map();
 
-function pick(list) {
-  return list[Math.floor(Math.random() * list.length)];
+function pick(key, list) {
+  if (list.length < 2) return list[0];
+  const last = recent.get(key);
+  let index;
+  do {
+    index = Math.floor(Math.random() * list.length);
+  } while (index === last);
+  recent.set(key, index);
+  return list[index];
 }
 
 /** What to say when `tool` starts. `first` is false for later calls in a turn. */
 export function narrate(tool, first) {
-  if (!first) return pick(STILL_WORKING);
-  return pick(NARRATION[tool] ?? NARRATION_DEFAULT);
+  if (!first) return pick('still', STILL_WORKING);
+  return pick(`tool:${tool}`, NARRATION[tool] ?? NARRATION_DEFAULT);
 }
 
-/** Picks a filler, never the same one twice in a row. */
-export function nextFiller() {
-  if (FILLERS.length < 2) return FILLERS[0];
-  let index;
-  do {
-    index = Math.floor(Math.random() * FILLERS.length);
-  } while (index === lastFiller);
-  lastFiller = index;
-  return FILLERS[index];
+/** The beat before the answer, matched to what was asked. */
+export function nextFiller(text = '') {
+  const kind = classify(text);
+  return pick(`filler:${kind}`, FILLERS[kind]);
 }

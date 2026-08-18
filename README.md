@@ -53,10 +53,38 @@ reads a two-sentence version aloud.
 
 ## Setup
 
+One command. It installs everything, checks it actually works, and tells you the
+only two things it cannot do for you.
+
 ```sh
-./build.sh          # compiles the Swift audio daemon
-npm run voices      # see which voices this Mac has (read the note it prints)
-npm start           # start talking
+curl -fsSL https://raw.githubusercontent.com/Bala-vignesh-kumar/opus-voice/main/install.sh | bash
+```
+
+Or in a clone:
+
+```sh
+./install.sh
+```
+
+It checks macOS and the Swift toolchain, installs Node if Homebrew is around,
+builds both binaries, downloads the neural voice and synthesizes a test phrase to
+prove it, creates your `config.json`, installs the `claude` CLI, and finishes with
+a ✓/✗ for every part. Re-running it is safe — it skips what is already done and
+never overwrites your settings.
+
+Two things need you:
+
+- **Sign in to Claude.** Run `claude` once and sign in with your existing
+  subscription. There is no API key anywhere in this project.
+- **Turn on Dictation** — System Settings › Keyboard › Dictation. Apple's
+  recognizer will not start at all without it. Let the language download finish,
+  or names come back mangled.
+
+Then:
+
+```sh
+npm run app         # desktop window
+npm start           # terminal
 ```
 
 The first run asks for **Microphone** and **Speech Recognition** permission. macOS
@@ -66,6 +94,30 @@ Privacy & Security.
 
 Requires macOS, Node 18+, the Swift toolchain (Xcode command line tools), and a
 working `claude` CLI. No API key — it uses the Claude Code auth you already have.
+
+Install it somewhere with a short path, like `~/opus-voice`. The speech engine
+keeps its data path in a fixed 160-character buffer, and an install buried deep
+enough to overflow it falls back to the robotic system voice. `install.sh` warns
+you if you are close.
+
+## The window
+
+`npm run app` opens a real Mac window instead of the terminal: the conversation as
+it happens, what it is hearing right now, the mode, tool calls as they run, and
+buttons for the same things you say out loud — discuss, take notes, sleep — plus a
+box to type in. Escape cuts it off mid-sentence, the way talking over it does.
+
+It is a WKWebView, not Electron: a few hundred kilobytes of AppKit that already
+ships with the machine, so installing it does not mean downloading a second
+browser. The window renders and nothing else — every decision still happens in
+`src/`, and the terminal UI keeps working exactly as before. Audio never goes near
+it, because echo cancellation only works while capture and playback share one
+engine.
+
+The server binds to loopback and requires a token generated at startup, which is
+in the URL printed when it opens. That token is the only thing stopping any page
+you happen to have open from posting commands to a process that can edit files and
+run shell commands.
 
 ### The voice
 
@@ -124,7 +176,7 @@ entirely, since there's no acoustic path from speaker back to mic.
 
 ## How it works
 
-Two processes.
+Two processes, or three with the window open.
 
 **`bin/voiceio`** (Swift) owns all the audio: microphone capture, Apple's on-device
 speech recognizer, and speech synthesis. These live in one process on purpose. The
@@ -140,6 +192,10 @@ loses its reference signal and barge-in starts firing on our own voice.
 **`src/`** (Node) owns the conversation: it keeps one long-lived `claude` process in
 streaming-JSON mode for the whole session, so process startup is paid once at launch
 rather than on every question, and history is retained by the session itself.
+
+**`bin/voiceapp`** (Swift, optional) is the window. It draws what `src/bus.mjs` holds
+and posts back what you click. Both surfaces go through `src/view.mjs`, so the
+terminal and the window can never disagree about what was said.
 
 ```
 mic ──> on-device recognition ──> endpoint detection ──> "final"
@@ -193,6 +249,8 @@ three independent guards against it interrupting itself.
 | `wakeWord` | `true` | require "jarvis" before it answers |
 | `awakeTimeoutMs` | `30000` | silence in awake or chat before it sleeps again |
 | `locale` | `en-IN` | accent the recognizer listens for |
+| `ui` | `false` | open the desktop window (`npm run app` sets it) |
+| `uiPort` | `4477` | loopback port for the window, steps up if taken |
 | `greeting` | *see config* | spoken at startup, `""` to disable |
 
 ```sh
@@ -246,5 +304,7 @@ npm test
 ```
 
 Covers the sentence chunker (streaming boundaries, abbreviations and decimals,
-markdown stripping, never speaking the inside of a code block) and wake phrase
-matching (mishearings, mode commands, false-wake resistance).
+markdown stripping, never speaking the inside of a code block), wake phrase
+matching (mishearings, mode commands, false-wake resistance), the conversation
+state the window renders from, how the thinking beat is chosen, and the window
+server — including that a command without the right token is refused.
