@@ -349,9 +349,9 @@ claude.on('turn-end', () => {
   if (pendingSummary) {
     pendingSummary = false;
     turn.silent = false;
-    const { written, spoken } = splitSummary(turn.raw);
+    const { title, written, spoken } = splitSummary(turn.raw);
     try {
-      const file = notes.save(workdir, written);
+      const file = notes.save(workdir, written, title);
       view.note(`notes saved to ${file}`);
       speaker.say(spoken || 'Notes saved.');
     } catch (err) {

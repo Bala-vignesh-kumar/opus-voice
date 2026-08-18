@@ -21,8 +21,10 @@ const STUBS = path.join(ROOT, 'test', 'stubs');
 const strip = (text) => text.replace(/\[[0-9;]*m/g, '');
 
 class App {
-  constructor() {
-    this.log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-')), 'asked.log');
+  constructor({ workdir = null } = {}) {
+    this.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
+    this.workdir = workdir ? this.dir : ROOT;
+    this.log = path.join(this.dir, 'asked.log');
     fs.writeFileSync(this.log, '');
     this.out = '';
     this.child = spawn(process.execPath, [
@@ -32,6 +34,7 @@ class App {
       // Long enough that the idle timer never fires mid-test and turns a
       // routing assertion into a timing one.
       '--awake-timeout-ms', '600000',
+      '--dir', this.workdir,
     ], {
       cwd: ROOT,
       env: {
@@ -60,7 +63,7 @@ class App {
 
   /** Everything that was actually sent to Claude, in order. */
   asked() {
-    return fs.readFileSync(this.log, 'utf8').split('\n').filter(Boolean);
+    return fs.readFileSync(this.log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   }
 
   /** Lets any in-flight routing settle before asserting a negative. */
@@ -140,5 +143,78 @@ test('the name is stripped from a question that carries it', async () => {
     app.type('falcon, why is my build slow');
     await app.expect('This is the stub answer.');
     assert.deepEqual(app.asked(), ['why is my build slow']);
+  } finally { app.stop(); }
+});
+
+test('a discussion is summarized into a titled note under a date folder', async () => {
+  // The whole note path end to end: enter note mode, capture a few lines, stop,
+  // and check what lands on disk — a titled file in a dated folder, carrying the
+  // summary and none of the raw speech.
+  const app = new App({ workdir: true });
+  try {
+    await app.expect('opus voice');
+    app.type('falcon listen');
+    await app.expect('taking notes');
+
+    app.type('the catch block marks it processed even when it threw');
+    app.type('we should look at issue 421 before changing it');
+    app.type('falcon stop');
+
+    await app.expect('notes saved to');
+
+    const today = new Date();
+    const day = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+    const folder = path.join(app.dir, 'notes', day);
+    assert.ok(fs.existsSync(folder), `expected a folder named ${day}`);
+
+    const files = fs.readdirSync(folder);
+    assert.deepEqual(files, ['redis-lock-for-pending-records.md'], 'named after the title');
+
+    const body = fs.readFileSync(path.join(folder, files[0]), 'utf8');
+    assert.match(body, /^# redis lock for pending records/);
+    assert.ok(body.includes('The job claims each row in Redis before sending.'));
+    assert.ok(body.includes('## References'));
+    // Markers are plumbing, and the raw speech is not wanted in the file.
+    assert.ok(!body.includes('TITLE:'), 'the title marker is stripped');
+    assert.ok(!body.includes('SPOKEN:'), 'the spoken marker is stripped');
+    assert.ok(!body.includes('the catch block marks it processed'), 'no transcript');
+  } finally { app.stop(); }
+});
+
+test('the summary request tells Claude to look the ticket up', async () => {
+  // Nothing here resolves a real issue — the stub stands in for the model. What
+  // is worth asserting is that the instruction and the mention both arrive.
+  const app = new App({ workdir: true });
+  try {
+    await app.expect('opus voice');
+    app.type('falcon listen');
+    await app.expect('taking notes');
+    app.type('we should look at issue 421 before changing it');
+    app.type('falcon stop');
+    await app.expect('notes saved to');
+
+    const prompt = app.asked().find((t) => t.includes('Transcript:'));
+    assert.ok(prompt, 'a summary request was sent');
+    assert.match(prompt, /gh issue view/, 'it is told how to look a number up');
+    assert.match(prompt, /## References/, 'it is told where to put what it finds');
+    assert.ok(prompt.includes('issue 421'), 'the mention reaches the model');
+  } finally { app.stop(); }
+});
+
+test('note mode never sends the discussion itself to Claude', async () => {
+  // Note mode exists to be a fly on the wall. A captured line becoming a
+  // question would both answer out loud and leak the room into a turn.
+  const app = new App({ workdir: true });
+  try {
+    await app.expect('opus voice');
+    app.type('falcon listen');
+    await app.expect('taking notes');
+    app.type('what do you think about the redis approach');
+    await app.settle();
+    assert.deepEqual(app.asked(), [], 'nothing is asked while capturing');
   } finally { app.stop(); }
 });

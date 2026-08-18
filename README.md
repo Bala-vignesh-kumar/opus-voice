@@ -47,9 +47,19 @@ Set `"wakeWord": false` to go back to answering everything it hears.
 ### Note mode
 
 `falcon listen` captures the conversation without speaking. On `falcon stop` it
-writes `notes/YYYY-MM-DD-HHMM.md` in the working directory — a summary of what was
-discussed, decisions, and action items, followed by the full transcript — then
-reads a two-sentence version aloud.
+writes `notes/YYYY-MM-DD/<title>.md` in the working directory — a day per folder,
+one titled file per discussion — then reads a two-sentence version aloud.
+
+The file holds a summary of what was discussed, decisions, and action items. The
+raw transcript is deliberately not kept: it is mangled speech that nobody
+rereads, and the summary is what the discussion was captured for.
+
+If the discussion mentions a ticket, issue or pull request, it looks the
+reference up before writing and adds a **References** section giving each one's
+title and state, so the notes say what the issue actually is rather than
+repeating a number back at you. Spoken forms count too — "issue four twenty one"
+and "hash 421" are both references. Anything it cannot resolve is marked as
+unresolved rather than guessed at.
 
 ## Setup
 
