@@ -9,6 +9,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Git does not track empty directories, so a fresh clone has no bin/ and the
+# linker fails with a bare "No such file or directory".
+mkdir -p bin
+
 echo "building voiceio…"
 swiftc -O \
   -o bin/voiceio \
@@ -24,3 +28,17 @@ swiftc -O \
 codesign --force --sign - bin/voiceio 2>/dev/null || echo "note: ad-hoc codesign skipped"
 
 echo "built bin/voiceio"
+
+# The desktop window. Separate binary because it is optional: the terminal UI
+# works without it, so a failure here must not stop the audio daemon shipping.
+echo "building voiceapp…"
+if swiftc -O \
+  -o bin/voiceapp \
+  swift/VoiceApp.swift \
+  -framework AppKit \
+  -framework WebKit; then
+  codesign --force --sign - bin/voiceapp 2>/dev/null || true
+  echo "built bin/voiceapp"
+else
+  echo "note: voiceapp did not build — 'npm start' still works, 'npm run app' will open your browser"
+fi

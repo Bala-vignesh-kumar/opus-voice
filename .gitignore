@@ -1,5 +1,6 @@
 node_modules/
-bin/voiceio
+# Compiled binaries — build.sh makes them.
+bin/
 vendor/
 
 # Local settings — copy config.example.json to config.json and edit.
