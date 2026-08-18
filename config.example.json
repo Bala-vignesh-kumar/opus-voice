@@ -15,5 +15,6 @@
   "greeting": "Say falcon when you need me.",
   "locale": "en-IN",
   "wakeWord": true,
-  "awakeTimeoutMs": 30000
+  "awakeTimeoutMs": 30000,
+  "showIgnored": false
 }

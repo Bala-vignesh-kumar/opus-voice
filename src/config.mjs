@@ -25,6 +25,8 @@ export const DEFAULTS = {
   wakeWord: true,           // require "falcon" before it answers anything
   awakeTimeoutMs: 30000,    // silence in awake or chat mode before it sleeps again
   greeting: 'Say falcon when you need me.',
+  showIgnored: false,       // record speech heard while asleep in the transcript
+
   ui: false,                // open the desktop window (npm run app sets this)
   uiPort: 4477,             // loopback port for the window; steps up if taken
 };

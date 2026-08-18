@@ -23,9 +23,11 @@ const strip = (text) => text.replace(/\[[0-9;]*m/g, '');
 class App {
   /** Always runs in a scratch working directory: the app writes todos.json and
    *  notes/ into it, and a test run must never touch the project. */
-  constructor({ dir = null } = {}) {
+  constructor({ dir = null, args = [] } = {}) {
+    this.args = args;
     this.dir = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
     this.log = path.join(this.dir, 'asked.log');
+    this.inject = path.join(this.dir, 'speech.txt');
     fs.writeFileSync(this.log, '');
     this.out = '';
     this.child = spawn(process.execPath, [
@@ -36,6 +38,7 @@ class App {
       // routing assertion into a timing one.
       '--awake-timeout-ms', '600000',
       '--dir', this.dir,
+      ...this.args,
     ], {
       cwd: ROOT,
       env: {
@@ -43,6 +46,7 @@ class App {
         OPUS_VOICE_IO_BIN: path.join(STUBS, 'voiceio.mjs'),
         OPUS_VOICE_CLAUDE_BIN: path.join(STUBS, 'claude.mjs'),
         STUB_CLAUDE_LOG: this.log,
+        STUB_VOICE_INJECT: this.inject,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -51,6 +55,10 @@ class App {
   }
 
   type(text) { this.child.stdin.write(`${text}\n`); }
+
+  /** Injects a recognized utterance, so it routes as speech rather than typing.
+   *  The stub daemon turns this into the same `final` event a microphone would. */
+  speak(text) { fs.appendFileSync(this.inject, `${text}\n`); }
 
   /** Waits for text to appear in the app's output. */
   async expect(needle, timeout = 8000) {
@@ -405,5 +413,38 @@ test('ending note mode with nothing captured also sleeps', async () => {
     await app.waitForMode('taking notes');
     app.type('falcon stop');
     await app.waitForMode('asleep');
+  } finally { app.stop(); }
+});
+
+test('speech heard while asleep leaves no trace in the transcript', async () => {
+  // Room noise reaches the recognizer constantly. Recording it filled the
+  // window with garbled fragments that read as if it were still working.
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    await app.waitForMode('asleep');
+    const before = app.out.length;
+
+    // Arrives exactly as a recognized utterance does, without the wake word.
+    app.speak('you reality I');
+    app.speak('so anyway the deploy failed again');
+    await app.settle();
+
+    assert.ok(!app.out.includes('you reality I'), 'not printed');
+    assert.ok(!app.out.includes('deploy failed again'), 'not printed');
+    assert.deepEqual(app.asked(), [], 'and certainly not answered');
+    assert.equal(app.mode(), 'asleep', 'and it stays asleep');
+    assert.ok(app.out.length - before < 40, 'nothing meaningful was written');
+  } finally { app.stop(); }
+});
+
+test('showIgnored brings the old behaviour back for debugging', async () => {
+  const app = new App({ args: ['--show-ignored'] });
+  try {
+    await app.expect('opus voice');
+    await app.waitForMode('asleep');
+    app.speak('you reality I');
+    await app.expect('you reality I');
+    assert.deepEqual(app.asked(), [], 'shown, but still never answered');
   } finally { app.stop(); }
 });

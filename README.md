@@ -45,6 +45,12 @@ so ordinary talk doesn't wake it. "falcon" was picked by testing candidates
 through the en-IN recognizer: it came back verbatim in every utterance, from
 every Indian English voice, which is not true of most names.
 
+While asleep it stays silent and writes nothing down. Speech still shows on the
+interim line as it is heard, so you can see the microphone is alive, but it
+leaves no trace in the transcript — a room full of half-heard fragments reads as
+if it were still working. Set `"showIgnored": true` if you are debugging
+recognition and want to see everything it picks up.
+
 Set `"wakeWord": false` to go back to answering everything it hears.
 
 ### Note mode

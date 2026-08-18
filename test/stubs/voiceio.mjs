@@ -6,6 +6,7 @@
 // speech_end before it considers a turn finished, so a stub that never sent it
 // would hang the app rather than test it.
 import readline from 'node:readline';
+import fs from 'node:fs';
 
 const emit = (obj) => process.stdout.write(`${JSON.stringify(obj)}\n`);
 
@@ -17,6 +18,25 @@ emit({
   locale: process.argv[process.argv.indexOf('--locale') + 1] || 'en-US',
   recognizer: 'SpeechTranscriber',
 });
+
+// Test-only injection channel: a file the test appends utterances to, which
+// this emits as `final` events. Speech has to enter the app through the daemon
+// the way a microphone would — sending it on the app's stdin would make it
+// typed input, which follows different rules.
+const INJECT = process.env.STUB_VOICE_INJECT;
+if (INJECT) {
+  let consumed = 0;
+  setInterval(() => {
+    let lines;
+    try {
+      lines = fs.readFileSync(INJECT, 'utf8').split('\n').filter(Boolean);
+    } catch {
+      return;
+    }
+    for (const text of lines.slice(consumed)) emit({ type: 'final', text });
+    consumed = lines.length;
+  }, 40).unref?.();
+}
 
 readline.createInterface({ input: process.stdin }).on('line', (line) => {
   let command;

@@ -322,7 +322,12 @@ function handleUtterance(text, { typed = false } = {}) {
 
   // Typing is deliberate, so it never needs a wake word.
   if (mode === MODE.ASLEEP && !typed) {
-    view.ignored(text);
+    // Asleep means asleep. Every stray sentence in the room reaches here, and
+    // recording them filled the transcript with garbled half-heard noise that
+    // read as if it were still working. The interim line already shows what the
+    // microphone is picking up and clears itself, so nothing is hidden by
+    // keeping the transcript to things actually addressed to it.
+    if (config.showIgnored) view.ignored(text);
     return;
   }
   if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, null);
