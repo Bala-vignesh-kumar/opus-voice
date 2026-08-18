@@ -13,6 +13,7 @@
     "test": "node --test 'test/*.test.mjs'",
     "voices": "node scripts/voices.mjs",
     "mic-test": "node scripts/mic-test.mjs",
-    "install-piper": "./scripts/install-piper.sh"
+    "install-piper": "./scripts/install-piper.sh",
+    "doctor": "./scripts/doctor.sh"
   }
 }

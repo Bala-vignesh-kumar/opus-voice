@@ -20,6 +20,9 @@ import { UiServer } from './server.mjs';
 import { loadConfig, resolveWorkdir } from './config.mjs';
 import { parseWake, parseCommand } from './wake.mjs';
 import { Notes, SUMMARY_PROMPT, splitSummary } from './notes.mjs';
+import { Todos } from './todos.mjs';
+import { parseTodo } from './todo-commands.mjs';
+import { createIssue } from './github.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -44,6 +47,7 @@ const speaker = new Speaker(voice, { engine: config.tts, piperVoice: config.pipe
 speaker.on('warn', (message) => view.warn(message));
 const chunker = new SpeechChunker();
 const notes = new Notes();
+const todos = new Todos(workdir);
 
 // asleep  ignores everything but the wake word
 // awake   answers questions, sleeps again after a spell of silence
@@ -173,6 +177,93 @@ function finishNotes() {
   ask(SUMMARY_PROMPT + transcript, { silent: true });
 }
 
+/** Publishes the list after anything changes it. */
+function pushTodos() {
+  view.todos(todos.snapshot());
+}
+
+/**
+ * Runs a to-do instruction. Shared by speech, typing and the window's buttons,
+ * so all three behave identically and there is one place to get it right.
+ *
+ * @returns {boolean} whether the utterance was a to-do command at all
+ */
+function handleTodo(parsed) {
+  if (!parsed) return false;
+
+  if (parsed.action === 'add') {
+    const item = todos.add(parsed.text);
+    pushTodos();
+    speaker.say(item ? `Added. That's ${todos.open.length} on your list.` : 'There was nothing to add.');
+    return true;
+  }
+
+  if (parsed.action === 'list') {
+    speaker.say(todos.spoken());
+    view.note(todos.open.map((item, i) => `${i + 1}. ${item.text}`).join('\n') || 'list is empty');
+    return true;
+  }
+
+  const item = todos.byOrdinal(parsed.index);
+  if (!item) {
+    // Saying which numbers exist beats "not found" when you cannot see a screen.
+    const count = todos.open.length;
+    speaker.say(count === 0 ? 'Your list is empty.' : `I only have ${count} on the list.`);
+    return true;
+  }
+
+  if (parsed.action === 'done') {
+    todos.complete(item.id);
+    pushTodos();
+    speaker.say(`Done: ${item.text}.`);
+    return true;
+  }
+
+  if (parsed.action === 'remove') {
+    todos.remove(item.id);
+    pushTodos();
+    speaker.say(`Removed: ${item.text}.`);
+    return true;
+  }
+
+  if (parsed.action === 'issue') {
+    fileIssue(item.id);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Files a to-do as a GitHub issue. Never called on its own — only from an
+ * explicit instruction or a button press, because an issue is public and
+ * awkward to withdraw.
+ */
+async function fileIssue(id) {
+  const item = todos.get(id);
+  if (!item) return;
+  if (item.issue) {
+    speaker.say(`That is already issue ${item.issue.number}.`);
+    return;
+  }
+
+  view.note(`filing "${item.text}" as a GitHub issue…`);
+  try {
+    const issue = await createIssue({
+      title: item.text,
+      body: 'Filed by opus voice from a spoken to-do.',
+      cwd: workdir,
+    });
+    todos.linkIssue(item.id, issue);
+    pushTodos();
+    view.note(`filed ${issue.url}`);
+    speaker.say(`Filed as issue ${issue.number}.`);
+  } catch (err) {
+    view.error(`could not file the issue: ${err.message}`);
+    speaker.say(`I could not file that — ${err.message}.`);
+  }
+}
+
 function handleUtterance(text, { typed = false } = {}) {
   const parsed = parseWake(text);
 
@@ -195,6 +286,8 @@ function handleUtterance(text, { typed = false } = {}) {
       case 'summarize': setMode(MODE.AWAKE, "there's nothing to summarize yet."); return;
       case 'ask':
         if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, null);
+        // A list instruction is not a question, and must not cost a turn.
+        if (handleTodo(parseTodo(parsed.rest))) { armSleep(); return; }
         ask(parsed.rest);
         return;
       default:
@@ -210,6 +303,11 @@ function handleUtterance(text, { typed = false } = {}) {
   // falls through to the question path below and asks Claude about the word
   // "stop", which is the exact opposite of what was asked for.
   if (mode !== MODE.ASLEEP || typed) {
+    if (handleTodo(parseTodo(text))) {
+      if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, null);
+      else armSleep();
+      return;
+    }
     switch (parseCommand(text)) {
       case 'stop': sleep(); return;
       case 'note': startNotes(); return;
@@ -253,6 +351,7 @@ voice.on('ready', (event) => {
   if (!event.onDevice) {
     view.warn('on-device speech model missing — recognition is going over the network');
   }
+  pushTodos();
   if (config.greeting) speaker.say(config.greeting);
   view.mode(mode);
 
@@ -349,11 +448,21 @@ claude.on('turn-end', () => {
   if (pendingSummary) {
     pendingSummary = false;
     turn.silent = false;
-    const { title, written, spoken } = splitSummary(turn.raw);
+    const { title, actions, written, spoken } = splitSummary(turn.raw);
     try {
       const file = notes.save(workdir, written, title);
       view.note(`notes saved to ${file}`);
-      speaker.say(spoken || 'Notes saved.');
+
+      // Action items become to-dos rather than a paragraph you have to reread.
+      // They are added, never filed as issues — that stays an explicit act.
+      const added = actions.filter((text) => todos.add(text, { source: 'notes' })).length;
+      if (added) {
+        pushTodos();
+        view.note(`${added} action item${added === 1 ? '' : 's'} added to your list`);
+      }
+
+      const tail = added ? ` I put ${added === 1 ? 'one action item' : `${added} action items`} on your list.` : '';
+      speaker.say(`${spoken || 'Notes saved.'}${tail}`);
     } catch (err) {
       view.error(`could not save notes: ${err.message}`);
     }
@@ -397,6 +506,22 @@ function handleCommand(command) {
         else sleep();
       }
       break;
+    case 'todo':
+      // The window sends real ids, not spoken ordinals: it can see the list, so
+      // there is nothing to resolve and nothing to mis-hear.
+      if (command.action === 'add' && typeof command.text === 'string') {
+        if (todos.add(command.text, { source: 'window' })) pushTodos();
+      } else if (command.action === 'done') {
+        if (todos.complete(command.id)) pushTodos();
+      } else if (command.action === 'reopen') {
+        if (todos.reopen(command.id)) pushTodos();
+      } else if (command.action === 'remove') {
+        if (todos.remove(command.id)) pushTodos();
+      } else if (command.action === 'issue') {
+        fileIssue(command.id);
+      }
+      break;
+
     case 'interrupt':
       // The same thing talking over it does, for when you would rather not.
       turn.aborted = true;

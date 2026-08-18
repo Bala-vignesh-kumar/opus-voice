@@ -38,9 +38,12 @@ you finish asking, so a long answer never cuts itself off. Note mode is exempt �
 it sits through a whole discussion and waits for "falcon stop". Typing never
 needs a wake word.
 
-The name is matched by edit distance plus a list of common mishearings, because
-recognition returns "Jervis", "Java's" and "service" fairly often. Ambiguous ones
-only count as the first word, so talking about *the service* won't wake it.
+The name is matched by edit distance plus a list of common mishearings, since
+recognition returns "Falken" and "Vulcan" often enough to matter. Real words
+inside that radius — *fallen*, *salmon*, *bacon*, *talon* — are blocked outright,
+so ordinary talk doesn't wake it. "falcon" was picked by testing candidates
+through the en-IN recognizer: it came back verbatim in every utterance, from
+every Indian English voice, which is not true of most names.
 
 Set `"wakeWord": false` to go back to answering everything it hears.
 
@@ -60,6 +63,37 @@ title and state, so the notes say what the issue actually is rather than
 repeating a number back at you. Spoken forms count too — "issue four twenty one"
 and "hash 421" are both references. Anything it cannot resolve is marked as
 unresolved rather than guessed at.
+
+### To-dos and issues
+
+Anything you say to the list is a command, not a question — it never costs a turn
+and never reaches the model.
+
+| you say | it does |
+|---|---|
+| **"falcon, add a todo to ship the redis fix"** | adds it |
+| **"remind me to update the docs"** | adds it |
+| **"what are my todos"** | reads the open ones back, numbered |
+| **"todo two is done"** | completes the second open item |
+| **"delete todo two"** | drops it |
+| **"make todo two a github issue"** | files it with `gh`, and remembers the number |
+
+The numbers are positions in the open list, in the order it reads them out — so
+the number you just heard is the number you can say back. Completing an item
+renumbers the rest, which is why it tells you the count after every change.
+
+Note mode feeds this: action items from a discussion are added to the list
+automatically when the summary is written. Filing an issue never is — it is
+public and awkward to withdraw, so it only happens when you ask for it by name
+or click the button.
+
+The list lives in `todos.json` in the working directory, so it belongs to the
+project you are talking about and outlives the app. The window shows the same
+list with buttons for done, remove, reopen, and file-as-issue.
+
+Filing needs the [GitHub CLI](https://cli.github.com) signed in (`gh auth login`)
+and a working directory that is a GitHub repository. If either is missing it says
+so out loud rather than failing quietly.
 
 ## Setup
 
@@ -150,6 +184,11 @@ Other voices — pass any name from
 
 Then set `"piperVoice": "en_US-ryan-high"` in `config.json`. Any locale works, not
 just American English — `en_GB-alba-medium`, `de_DE-thorsten-high` and so on.
+
+**If anything fails.** Run `npm run doctor`. It writes
+`opus-voice-diagnostics.txt` with this machine's versions, the exact download URL,
+whether that URL is reachable from here, and the full output of the step that
+failed — which is the thing worth sending when asking for help.
 
 **If the download fails.** Re-run it. The model is downloaded to a scratch file
 and only moved into place once complete, so an interrupted transfer is detected

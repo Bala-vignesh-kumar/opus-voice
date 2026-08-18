@@ -32,6 +32,11 @@ has nothing for it. Be concise and concrete.
 
 Do not reproduce the transcript — the summary replaces it.
 
+If the discussion produced action items, list them again at the end, one per line, each on its
+own line beginning with "ACTION:" — just the task as an instruction, no owner, no numbering.
+These become to-do items, so each one has to stand on its own away from the discussion: "add a
+TTL to the redis lock keys", not "do the TTL thing we said".
+
 Finally, at the very end, add a single line beginning with "SPOKEN:" containing a two-sentence
 spoken summary suitable for reading aloud.
 
@@ -135,22 +140,33 @@ function unique(folder, stem) {
 }
 
 /**
- * Splits the model's reply into the title, the written notes, and the line meant
- * to be read aloud. The markers are stripped so neither ends up in the file.
+ * Splits the model's reply into its parts: the title, the action items, the
+ * written notes and the line meant to be read aloud. Every marker is stripped,
+ * so none of this plumbing reaches the file or the speaker.
  */
 export function splitSummary(text) {
   const raw = String(text);
 
   const titleMatch = /^[ \t]*TITLE:[ \t]*(.+)$/im.exec(raw);
   const title = titleMatch ? titleMatch[1].trim() : '';
-  const body = titleMatch
+  let body = titleMatch
     ? raw.slice(0, titleMatch.index) + raw.slice(titleMatch.index + titleMatch[0].length)
     : raw;
 
+  // Action lines are collected and removed. They are repeated on purpose — the
+  // prose keeps them in context, and these are the copy that becomes to-dos.
+  const actions = [];
+  body = body.replace(/^[ \t]*ACTION:[ \t]*(.+)$/gim, (_, item) => {
+    const clean = item.trim().replace(/^[-*\d.\s]+/, '').trim();
+    if (clean) actions.push(clean);
+    return '';
+  });
+
   const spokenMatch = /^[ \t]*SPOKEN:[ \t]*(.+)$/ims.exec(body);
-  if (!spokenMatch) return { title, written: body.trim(), spoken: '' };
+  if (!spokenMatch) return { title, actions, written: body.trim(), spoken: '' };
   return {
     title,
+    actions,
     written: body.slice(0, spokenMatch.index).trim(),
     spoken: spokenMatch[1].trim(),
   };

@@ -28,6 +28,7 @@ export class Conversation extends EventEmitter {
     this.partial = '';       // what it is hearing right now, not yet final
     this.speaking = false;
     this.info = {};          // banner details: model, voice, workdir
+    this.todos = [];         // the list, mirrored for the window
   }
 
   /** Everything a freshly connected client needs to draw the whole window. */
@@ -40,6 +41,7 @@ export class Conversation extends EventEmitter {
       partial: this.partial,
       speaking: this.speaking,
       info: this.info,
+      todos: this.todos,
     };
   }
 
@@ -122,6 +124,12 @@ export class Conversation extends EventEmitter {
     if (this.status === status) return;
     this.status = status;
     this.emit('change', { type: 'status', status });
+  }
+
+  /** The whole list, resent on every change — it is small and never partial. */
+  setTodos(todos) {
+    this.todos = todos;
+    this.emit('change', { type: 'todos', todos });
   }
 
   setSpeaking(speaking) {

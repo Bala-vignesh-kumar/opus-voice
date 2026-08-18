@@ -19,6 +19,9 @@ const SUMMARY = [
   '',
   'The job claims each row in Redis before sending.',
   '',
+  'ACTION: add a TTL to the redis lock keys',
+  'ACTION: rework the catch block so a failure is marked failed',
+  '',
   'SPOKEN: Notes saved. It was about the Redis lock.',
 ].join('\n');
 

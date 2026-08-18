@@ -84,6 +84,11 @@ export function makeView(ui, conversation) {
       conversation.interrupted();
     },
 
+    /** The list changed: the window redraws, the terminal stays quiet. */
+    todos(list) {
+      conversation.setTodos(list);
+    },
+
     speaking(on) {
       conversation.setSpeaking(on);
     },

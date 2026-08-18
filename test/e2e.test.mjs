@@ -21,9 +21,10 @@ const STUBS = path.join(ROOT, 'test', 'stubs');
 const strip = (text) => text.replace(/\[[0-9;]*m/g, '');
 
 class App {
-  constructor({ workdir = null } = {}) {
-    this.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
-    this.workdir = workdir ? this.dir : ROOT;
+  /** Always runs in a scratch working directory: the app writes todos.json and
+   *  notes/ into it, and a test run must never touch the project. */
+  constructor({ dir = null } = {}) {
+    this.dir = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
     this.log = path.join(this.dir, 'asked.log');
     fs.writeFileSync(this.log, '');
     this.out = '';
@@ -34,7 +35,7 @@ class App {
       // Long enough that the idle timer never fires mid-test and turns a
       // routing assertion into a timing one.
       '--awake-timeout-ms', '600000',
-      '--dir', this.workdir,
+      '--dir', this.dir,
     ], {
       cwd: ROOT,
       env: {
@@ -150,7 +151,7 @@ test('a discussion is summarized into a titled note under a date folder', async 
   // The whole note path end to end: enter note mode, capture a few lines, stop,
   // and check what lands on disk — a titled file in a dated folder, carrying the
   // summary and none of the raw speech.
-  const app = new App({ workdir: true });
+  const app = new App();
   try {
     await app.expect('opus voice');
     app.type('falcon listen');
@@ -188,7 +189,7 @@ test('a discussion is summarized into a titled note under a date folder', async 
 test('the summary request tells Claude to look the ticket up', async () => {
   // Nothing here resolves a real issue — the stub stands in for the model. What
   // is worth asserting is that the instruction and the mention both arrive.
-  const app = new App({ workdir: true });
+  const app = new App();
   try {
     await app.expect('opus voice');
     app.type('falcon listen');
@@ -208,7 +209,7 @@ test('the summary request tells Claude to look the ticket up', async () => {
 test('note mode never sends the discussion itself to Claude', async () => {
   // Note mode exists to be a fly on the wall. A captured line becoming a
   // question would both answer out loud and leak the room into a turn.
-  const app = new App({ workdir: true });
+  const app = new App();
   try {
     await app.expect('opus voice');
     app.type('falcon listen');
@@ -216,5 +217,117 @@ test('note mode never sends the discussion itself to Claude', async () => {
     app.type('what do you think about the redis approach');
     await app.settle();
     assert.deepEqual(app.asked(), [], 'nothing is asked while capturing');
+  } finally { app.stop(); }
+});
+
+// ---------------------------------------------------------------- to-dos
+
+/** The list as the app persisted it, read back from the working directory. */
+function todosOnDisk(app) {
+  const file = path.join(app.dir, 'todos.json');
+  if (!fs.existsSync(file)) return [];
+  return JSON.parse(fs.readFileSync(file, 'utf8')).items;
+}
+
+test('a spoken to-do is added without costing a turn', async () => {
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    app.type('falcon, add a todo to ship the redis fix');
+    await app.settle();
+
+    const items = todosOnDisk(app);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].text, 'ship the redis fix');
+    assert.deepEqual(app.asked(), [], 'a list instruction is not a question');
+  } finally { app.stop(); }
+});
+
+test('to-dos are completed and removed by the number that was read out', async () => {
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    app.type('falcon, add a todo to ship the redis fix');
+    app.type('add a todo to write the migration');
+    app.type('add a todo to update the docs');
+    await app.settle();
+    assert.equal(todosOnDisk(app).filter((t) => !t.done).length, 3);
+
+    app.type('todo two is done');
+    await app.settle();
+    const afterDone = todosOnDisk(app);
+    assert.equal(afterDone.find((t) => t.text === 'write the migration').done, true);
+
+    // "todo two" now means what was third, because ordinals count open items.
+    app.type('delete todo two');
+    await app.settle();
+    const afterDelete = todosOnDisk(app);
+    assert.ok(!afterDelete.some((t) => t.text === 'update the docs'), 'the second open item went');
+    assert.ok(afterDelete.some((t) => t.text === 'ship the redis fix'), 'the first is untouched');
+
+    assert.deepEqual(app.asked(), [], 'none of that reached Claude');
+  } finally { app.stop(); }
+});
+
+test('an ordinary question is still a question', async () => {
+  // The parser sits in front of every utterance, so the thing most worth
+  // proving is that it stays out of the way.
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    app.type('falcon, can you delete the feature branch');
+    await app.expect('This is the stub answer.');
+    assert.deepEqual(app.asked(), ['can you delete the feature branch']);
+    assert.equal(todosOnDisk(app).length, 0);
+  } finally { app.stop(); }
+});
+
+test('the list survives a restart', async () => {
+  const first = new App();
+  const dir = first.dir;
+  try {
+    await first.expect('opus voice');
+    first.type('add a todo to ship the redis fix');
+    await first.settle();
+  } finally { first.stop(); }
+
+  // A second app in the same working directory must read the same list back and
+  // keep numbering from where the first left off.
+  const second = new App({ dir });
+  try {
+    await second.expect('opus voice');
+    second.type('add a todo to write the migration');
+    await second.settle();
+    const items = todosOnDisk(second);
+    assert.deepEqual(items.map((t) => t.text), ['ship the redis fix', 'write the migration']);
+    assert.deepEqual(items.map((t) => t.id), [1, 2], 'ids continue rather than restarting');
+  } finally { second.stop(); }
+});
+
+test('action items from a discussion land on the list', async () => {
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    app.type('falcon listen');
+    await app.expect('taking notes');
+    app.type('the catch block marks it processed even when it threw');
+    app.type('falcon stop');
+    await app.expect('notes saved to');
+    await app.settle();
+
+    const items = todosOnDisk(app);
+    assert.equal(items.length, 2, 'both ACTION lines became to-dos');
+    assert.deepEqual(items.map((t) => t.text), [
+      'add a TTL to the redis lock keys',
+      'rework the catch block so a failure is marked failed',
+    ]);
+    assert.ok(items.every((t) => t.source === 'notes'));
+
+    // The markers are plumbing and must not reach the notes file.
+    const notesFile = fs.readdirSync(path.join(app.dir, 'notes'))
+      .flatMap((d) => fs.readdirSync(path.join(app.dir, 'notes', d))
+        .map((f) => path.join(app.dir, 'notes', d, f)))[0];
+    const body = fs.readFileSync(notesFile, 'utf8');
+    assert.ok(!body.includes('ACTION:'), 'the action marker is stripped');
   } finally { app.stop(); }
 });

@@ -11,3 +11,6 @@ notes/
 
 # macOS finder droppings.
 .DS_Store
+
+# Diagnostics bundle from ./scripts/doctor.sh — yours to send, not the repo's.
+opus-voice-diagnostics.txt

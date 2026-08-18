@@ -15,6 +15,18 @@
     <div class="mode" id="mode">asleep</div>
   </header>
 
+  <aside id="todos" class="todos" hidden>
+    <div class="todos-head">
+      <span class="todos-title">To-do</span>
+      <span class="todos-count" id="todo-count"></span>
+      <button class="ghost" id="todo-toggle" title="show or hide done items">show done</button>
+    </div>
+    <ul class="todo-list" id="todo-list"></ul>
+    <form id="todo-composer">
+      <input id="todo-input" type="text" placeholder="add a to-do…" autocomplete="off" spellcheck="false">
+    </form>
+  </aside>
+
   <main id="stream">
     <div class="empty" id="empty">
       <div class="orb idle"></div>
