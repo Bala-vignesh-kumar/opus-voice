@@ -5,9 +5,9 @@ it answers out loud, and you can cut it off mid-sentence the way you would a per
 
 ```
 opus voice · opus · piper neural · on-device en-IN
-  ›  asleep — say "jarvis" to wake
+  ›  asleep — say "falcon" to wake
 
-you  jarvis, why is my build slow?
+you  falcon, why is my build slow?
      … "mm, let me think"
 opus It's the cache — it's rebuilding from scratch every run.
      That's most of your build time, and it's a two-line fix.
@@ -21,21 +21,21 @@ leave it running while you work or take a call.
 
 | say | what happens |
 |---|---|
-| **"jarvis"** | wakes up and waits for you |
-| **"jarvis, why is X slow?"** | wakes and answers in one go |
-| **"jarvis listen"** | note mode: captures the discussion silently, never replies |
-| **"jarvis let's discuss"** | chat mode: stays awake until you stop it |
-| **"jarvis stop"** | back to sleep (ends note mode and writes the summary) |
+| **"falcon"** | wakes up and waits for you |
+| **"falcon, why is X slow?"** | wakes and answers in one go |
+| **"falcon listen"** | note mode: captures the discussion silently, never replies |
+| **"falcon let's discuss"** | chat mode: stays awake until you stop it |
+| **"falcon stop"** | back to sleep (ends note mode and writes the summary) |
 
 Once it is already listening, the name is optional for commands — "go to sleep"
 or just "stop" works on its own. That only applies to short utterances that are
 nothing but the command, so "how do I stop the dev server" stays a question.
 While asleep, and while taking notes, the name is always required.
 
-Awake and chat both fall asleep after 30 seconds of silence, and need "jarvis"
+Awake and chat both fall asleep after 30 seconds of silence, and need "falcon"
 again to come back. The countdown starts when it finishes answering, not when
 you finish asking, so a long answer never cuts itself off. Note mode is exempt —
-it sits through a whole discussion and waits for "jarvis stop". Typing never
+it sits through a whole discussion and waits for "falcon stop". Typing never
 needs a wake word.
 
 The name is matched by edit distance plus a list of common mishearings, because
@@ -46,7 +46,7 @@ Set `"wakeWord": false` to go back to answering everything it hears.
 
 ### Note mode
 
-`jarvis listen` captures the conversation without speaking. On `jarvis stop` it
+`falcon listen` captures the conversation without speaking. On `falcon stop` it
 writes `notes/YYYY-MM-DD-HHMM.md` in the working directory — a summary of what was
 discussed, decisions, and action items, followed by the full transcript — then
 reads a two-sentence version aloud.
@@ -246,7 +246,7 @@ three independent guards against it interrupting itself.
 | `narrateTools` | `true` | speak "let me look at that" when a tool runs |
 | `bargeInWords` | `2` | words needed to interrupt |
 | `fillerDelayMs` | `250` | grace period before the thinking beat |
-| `wakeWord` | `true` | require "jarvis" before it answers |
+| `wakeWord` | `true` | require "falcon" before it answers |
 | `awakeTimeoutMs` | `30000` | silence in awake or chat before it sleeps again |
 | `locale` | `en-IN` | accent the recognizer listens for |
 | `ui` | `false` | open the desktop window (`npm run app` sets it) |

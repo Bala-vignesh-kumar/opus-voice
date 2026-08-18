@@ -72,9 +72,9 @@ function paintState() {
 
   if (speaking) { kind = 'speaking'; label = 'speaking'; }
   else if (status) { kind = 'thinking'; label = status; }
-  else if (mode === 'note') { kind = 'notes'; label = 'listening — say "jarvis stop" to finish'; }
+  else if (mode === 'note') { kind = 'notes'; label = 'listening — say "falcon stop" to finish'; }
   else if (mode === 'chat' || mode === 'awake') { kind = 'listening'; label = 'listening'; }
-  else { label = 'asleep — say "jarvis" to wake'; }
+  else { label = 'asleep — say "falcon" to wake'; }
 
   orb.className = `orb ${kind}`;
   document.querySelector('.empty .orb').className = `orb ${kind}`;

@@ -1,19 +1,25 @@
 // Wake phrase detection.
 //
-// Speech recognition mangles names constantly — "jarvis" comes back as "Jarvis",
-// "Java's", "Jervis", "service". Exact matching would make the wake word feel
-// broken, so the name is matched by edit distance and commands by keyword rather
-// than by exact phrase.
+// Speech recognition mangles names constantly, so the name is matched by edit
+// distance and commands by keyword rather than by exact phrase.
 
-const WAKE_WORD = 'jarvis';
+const WAKE_WORD = 'falcon';
 const WAKE_DISTANCE = 2;
 
 // Mishearings that sound right but are too far in spelling for edit distance.
-// Only honoured as the very first word: "service" and "java's" turn up in
-// ordinary developer conversation, and waking on those would be worse than
-// missing an occasional wake.
+// Only honoured as the very first word, since a word that turns up in ordinary
+// developer conversation waking it is worse than missing an occasional wake.
 const WAKE_ALIASES = new Set([
-  'service', 'harvest', 'travis', 'jarvez', "java's", 'jarvis', 'charvis',
+  'falcon', 'falcons', 'vulcan', 'falken', 'foulcon',
+]);
+
+// Real words within the fuzz radius of the name. None of these is worth a false
+// wake, and none of them is a plausible way to address it. Checked before the
+// edit-distance test, so it overrides the fuzz but never an exact match on the
+// name itself.
+const NOT_WAKE = new Set([
+  'fallen', 'felon', 'talon', 'salon', 'salmon', 'bacon', 'balcony',
+  'falls', 'fall', 'falcon punch',
 ]);
 
 // Longest utterance still treated as a bare command rather than a question.
@@ -54,6 +60,8 @@ function distance(a, b) {
 
 function isWakeWord(word, first) {
   const bare = word.replace(/'s$/, '');
+  if (bare === WAKE_WORD) return true;
+  if (NOT_WAKE.has(bare) || NOT_WAKE.has(word)) return false;
   if (distance(bare, WAKE_WORD) <= WAKE_DISTANCE) return true;
   return first && WAKE_ALIASES.has(word);
 }
@@ -69,7 +77,7 @@ export function parseWake(text) {
   const words = normalize(text).split(' ').filter(Boolean);
   if (words.length === 0) return { wake: false, command: null, rest: '' };
 
-  // Only honour the wake word near the start, so "I told Jarvis to stop"
+  // Only honour the wake word near the start, so "I told Falcon to stop"
   // mid-sentence doesn't trigger a mode change.
   const index = words.slice(0, 3).findIndex((word, i) => isWakeWord(word, i === 0));
   if (index === -1) return { wake: false, command: null, rest: text.trim() };
@@ -86,7 +94,7 @@ export function parseWake(text) {
     }
   }
 
-  // Woke it and immediately asked something: "jarvis, why is the build slow?"
+  // Woke it and immediately asked something: "falcon, why is the build slow?"
   return { wake: true, command: 'ask', rest: tail };
 }
 

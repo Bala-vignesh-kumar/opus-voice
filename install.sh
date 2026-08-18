@@ -205,6 +205,9 @@ fi
 # Auth is a browser flow tied to a person's account. It is checked, never faked,
 # and never satisfied with an API key — this runs on your existing subscription.
 if command -v claude >/dev/null 2>&1; then
+  # This round-trips a real prompt, so it takes several seconds and prints
+  # nothing while it runs. Say so, or the script looks frozen here.
+  info "checking sign-in (one round trip, up to 90s)…"
   # No `timeout` on macOS, so the cap comes from perl's alarm. Without a cap an
   # unauthenticated CLI can sit waiting on a browser flow forever.
   if echo "hi" | perl -e 'alarm 90; exec @ARGV or exit 1' claude --print --model haiku >/dev/null 2>&1; then
@@ -283,4 +286,4 @@ printf '%sstart it%s\n\n' "$bold" "$reset"
 printf '    cd %s\n' "$ROOT"
 printf '    npm run app        %s# desktop window%s\n' "$dim" "$reset"
 printf '    npm start          %s# terminal%s\n\n' "$dim" "$reset"
-printf '  %sThen say "jarvis".%s\n\n' "$dim" "$reset"
+printf '  %sThen say "falcon".%s\n\n' "$dim" "$reset"

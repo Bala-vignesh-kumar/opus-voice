@@ -25,10 +25,13 @@ export class Ui {
     this.status = null;
   }
 
-  banner({ voice, model, onDevice, workdir, engine, locale }) {
+  banner({ voice, model, onDevice, workdir, engine, locale, recognizer }) {
     const quality = onDevice ? 'on-device' : 'server-based';
     const spoken = engine === 'piper' ? 'piper neural' : voice;
-    this.stream.write(`\n${C.bold}opus voice${C.reset} ${C.grey}·${C.reset} ${model} ${C.grey}·${C.reset} ${spoken} ${C.grey}·${C.reset} ${quality} ${locale}\n`);
+    // Which recognizer is running is the single biggest factor in how well it
+    // hears a non-US accent, so it goes in the banner rather than a debug log.
+    const ears = recognizer === 'SpeechTranscriber' ? 'transcriber' : 'legacy';
+    this.stream.write(`\n${C.bold}opus voice${C.reset} ${C.grey}·${C.reset} ${model} ${C.grey}·${C.reset} ${spoken} ${C.grey}·${C.reset} ${ears} ${quality} ${locale}\n`);
     // The working directory is the one thing that must never be a surprise: it
     // can edit and run commands in here.
     this.stream.write(`${C.amber}working in${C.reset} ${workdir}\n`);
@@ -60,10 +63,10 @@ export class Ui {
   /** Announces a mode change and parks it on the live line. */
   mode(name) {
     const labels = {
-      asleep: `${C.grey}asleep${C.reset} ${C.grey}— say "jarvis" to wake${C.reset}`,
+      asleep: `${C.grey}asleep${C.reset} ${C.grey}— say "falcon" to wake${C.reset}`,
       awake: `${C.green}awake${C.reset}`,
       chat: `${C.green}chat${C.reset}`,
-      note: `${C.amber}taking notes${C.reset} ${C.grey}— say "jarvis stop" to finish${C.reset}`,
+      note: `${C.amber}taking notes${C.reset} ${C.grey}— say "falcon stop" to finish${C.reset}`,
     };
     this.print(`${C.grey}  ›  ${C.reset}${labels[name] ?? name}`);
   }

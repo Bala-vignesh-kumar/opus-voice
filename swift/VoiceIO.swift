@@ -10,6 +10,7 @@
 // Protocol is newline-delimited JSON: commands on stdin, events on stdout.
 
 import AVFoundation
+import CoreMedia
 import Foundation
 import Speech
 
@@ -30,6 +31,166 @@ func fail(_ message: String, fatal: Bool = false) {
     if fatal { exit(1) }
 }
 
+// MARK: - Transcriber engine (macOS 26)
+
+/// Wraps `SpeechAnalyzer` + `SpeechTranscriber`, the recognizer behind modern
+/// dictation. It is a separate type purely so all the macOS 26 symbols sit
+/// behind one availability annotation instead of being smeared through VoiceIO.
+///
+/// Unlike `SFSpeechRecognitionTask` this session does not expire after a minute,
+/// so it is started once and kept running; turn boundaries are drawn with
+/// `finalize` rather than by tearing the recognizer down.
+@available(macOS 26.0, *)
+final class TranscriberEngine {
+    private let transcriber: SpeechTranscriber
+    private let analyzer: SpeechAnalyzer
+    private let continuation: AsyncStream<AnalyzerInput>.Continuation
+    private let format: AVAudioFormat
+    private var converter: AVAudioConverter?
+
+    /// Running sample clock for the input stream. Every buffer must carry its
+    /// start time: without one the analyzer accepts the audio and then reports
+    /// nothing at all, which looks exactly like a dead microphone.
+    private var framePosition: Int64 = 0
+    private let clock = NSLock()
+
+    /// Called on every result. `volatile` text is still revisable; anything else
+    /// is immutable and has been appended to the finalized run.
+    var onResult: ((_ text: String, _ isFinal: Bool) -> Void)?
+
+    /// The audio format the analyzer wants; mic buffers are resampled into it.
+    var inputFormat: AVAudioFormat { format }
+
+    static func supports(_ locale: Locale) async -> Bool {
+        guard SpeechTranscriber.isAvailable else { return false }
+        return await SpeechTranscriber.supportedLocale(equivalentTo: locale) != nil
+    }
+
+    static func installed(_ locale: Locale) async -> Bool {
+        let code = locale.identifier(.bcp47)
+        return await SpeechTranscriber.installedLocales
+            .contains { $0.identifier(.bcp47) == code }
+    }
+
+    /// Downloads the on-device model for this locale if it is supported but not
+    /// yet present. Nothing to do on a machine that already has it.
+    static func install(_ locale: Locale) async throws {
+        let probe = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        if let request = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {
+            try await request.downloadAndInstall()
+        }
+    }
+
+    init(locale: Locale) async throws {
+        // Volatile results are what makes the UI feel live and drive barge-in;
+        // without them nothing appears until the speaker pauses.
+        transcriber = SpeechTranscriber(
+            locale: locale,
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults],
+            attributeOptions: []
+        )
+        guard let best = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
+            throw NSError(
+                domain: "voiceio",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "no analyzer audio format for \(locale.identifier)"]
+            )
+        }
+        format = best
+
+        let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
+        self.continuation = continuation
+        analyzer = SpeechAnalyzer(modules: [transcriber])
+        try await analyzer.start(inputSequence: stream)
+
+        Task { [transcriber] in
+            do {
+                for try await result in transcriber.results {
+                    let text = String(result.text.characters)
+                    self.onResult?(text, result.isFinal)
+                }
+            } catch {
+                emit([
+                    "type": "recog_error",
+                    "message": error.localizedDescription,
+                    "engine": "transcriber",
+                ])
+            }
+        }
+    }
+
+    /// Resamples a mic buffer into the analyzer's format and hands it over.
+    func feed(_ buffer: AVAudioPCMBuffer) {
+        guard let converted = resample(buffer) else { return }
+        clock.lock()
+        let start = CMTime(value: framePosition, timescale: CMTimeScale(format.sampleRate))
+        framePosition += Int64(converted.frameLength)
+        clock.unlock()
+        continuation.yield(AnalyzerInput(buffer: converted, bufferStartTime: start))
+    }
+
+    /// Promotes everything still volatile into a final result, so a turn
+    /// boundary lands on immutable text rather than on a guess.
+    ///
+    /// Finalizing needs a concrete mark and needs input to keep arriving past
+    /// it — `finalize(through: nil)` simply never returns on a live stream. The
+    /// mic satisfies that, but a stalled input device would otherwise wedge
+    /// turn-taking forever, so the wait is capped and the barrier is
+    /// best-effort.
+    func finalizeTurn(timeout: TimeInterval = 2.0) async {
+        clock.lock()
+        let mark = CMTime(value: framePosition, timescale: CMTimeScale(format.sampleRate))
+        clock.unlock()
+
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            let resumed = NSLock()
+            var already = false
+            let finish = {
+                resumed.lock()
+                let first = !already
+                already = true
+                resumed.unlock()
+                if first { cont.resume() }
+            }
+            Task {
+                try? await self.analyzer.finalize(through: mark)
+                finish()
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                finish()
+            }
+        }
+    }
+
+    private func resample(_ pcm: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        if pcm.format == format { return pcm }
+        if converter == nil || converter?.inputFormat != pcm.format {
+            converter = AVAudioConverter(from: pcm.format, to: format)
+        }
+        guard let converter else { return nil }
+
+        let ratio = format.sampleRate / pcm.format.sampleRate
+        let capacity = AVAudioFrameCount(Double(pcm.frameLength) * ratio) + 1024
+        guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
+
+        var supplied = false
+        var error: NSError?
+        converter.convert(to: out, error: &error) { _, status in
+            if supplied {
+                status.pointee = .noDataNow
+                return nil
+            }
+            supplied = true
+            status.pointee = .haveData
+            return pcm
+        }
+        if error != nil { return nil }
+        return out.frameLength > 0 ? out : nil
+    }
+}
+
 // MARK: - VoiceIO
 
 final class VoiceIO: NSObject {
@@ -41,6 +202,25 @@ final class VoiceIO: NSObject {
     private var recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+
+    // macOS 26 path. SFSpeechRecognizer only has assets for a handful of
+    // locales, so anything else (en-IN among them) silently degrades to Apple's
+    // dictation server. SpeechTranscriber is the model modern dictation uses and
+    // ships on-device assets for the full English spread, which is a large
+    // accuracy difference on non-US accents. Preferred whenever it has the
+    // locale; the legacy recognizer stays as the fallback.
+    private var transcriber: AnyObject?
+    private var usingTranscriber = false
+    private var recognizerName = "SFSpeechRecognizer"
+
+    /// Turn assembly for the transcriber path. Results arrive as revisable
+    /// "volatile" text followed by immutable finalized text, so a turn is
+    /// everything finalized past `finalizedBase` plus whatever is still volatile.
+    private var finalizedText = ""
+    private var volatileText = ""
+    private var finalizedBase = 0
+    private var awaitingBarrier = false
+
     private var playFormat: AVAudioFormat!
     private var micFormat: AVAudioFormat!
     private var pcmFormat: AVAudioFormat?
@@ -89,15 +269,20 @@ final class VoiceIO: NSObject {
                 fail("audio engine failed to start: \(error.localizedDescription)", fatal: true)
                 return
             }
-            self.setupRecognizer()
-            self.startEndpointTimer()
-            emit([
-                "type": "ready",
-                "voice": self.voice?.name ?? "unknown",
-                "voiceId": self.voice?.identifier ?? "",
-                "onDevice": self.onDevice,
-                "locale": self.localeId,
-            ])
+            // Picking a recognizer can mean a model download, so `ready` waits
+            // for it. Announcing before it resolves reports the wrong engine and
+            // the wrong on-device state.
+            self.setupRecognizer {
+                self.startEndpointTimer()
+                emit([
+                    "type": "ready",
+                    "voice": self.voice?.name ?? "unknown",
+                    "voiceId": self.voice?.identifier ?? "",
+                    "onDevice": self.onDevice,
+                    "locale": self.localeId,
+                    "recognizer": self.recognizerName,
+                ])
+            }
         }
     }
 
@@ -149,7 +334,11 @@ final class VoiceIO: NSObject {
         input.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
             guard let self, let mono = self.mono(from: buffer) else { return }
             self.meter(mono)
-            self.request?.append(mono)
+            if #available(macOS 26.0, *), let engine = self.transcriber as? TranscriberEngine {
+                engine.feed(mono)
+            } else {
+                self.request?.append(mono)
+            }
         }
 
         engine.prepare()
@@ -189,7 +378,54 @@ final class VoiceIO: NSObject {
         emit(["type": "level", "rms": Double(rms)])
     }
 
-    private func setupRecognizer() {
+    private func setupRecognizer(_ done: @escaping () -> Void) {
+        // Prefer the macOS 26 transcriber wherever it has the locale. This is the
+        // whole accuracy story for non-US English: SFSpeechRecognizer has no
+        // on-device asset for en-IN and quietly falls back to the dictation
+        // server, which mis-hears Indian-accented speech badly.
+        if #available(macOS 26.0, *) {
+            let locale = Locale(identifier: localeId)
+            Task {
+                let fallback = { (reason: String) in
+                    emit(["type": "warn", "message": "\(reason); using the legacy recognizer"])
+                    DispatchQueue.main.async { self.setupLegacyRecognizer(done) }
+                }
+                guard await TranscriberEngine.supports(locale) else {
+                    fallback("SpeechTranscriber has no model for \(self.localeId)")
+                    return
+                }
+                if await !TranscriberEngine.installed(locale) {
+                    emit(["type": "warn", "message": "downloading the on-device model for \(self.localeId)…"])
+                    do {
+                        try await TranscriberEngine.install(locale)
+                    } catch {
+                        fallback("model download failed (\(error.localizedDescription))")
+                        return
+                    }
+                }
+                do {
+                    let engine = try await TranscriberEngine(locale: locale)
+                    engine.onResult = { [weak self] text, isFinal in
+                        self?.handleTranscriberResult(text, isFinal: isFinal)
+                    }
+                    DispatchQueue.main.async {
+                        self.transcriber = engine
+                        self.usingTranscriber = true
+                        self.onDevice = true
+                        self.recognizerName = "SpeechTranscriber"
+                        done()
+                    }
+                } catch {
+                    fallback("SpeechTranscriber failed to start (\(error.localizedDescription))")
+                }
+            }
+            return
+        }
+        setupLegacyRecognizer(done)
+    }
+
+    private func setupLegacyRecognizer(_ done: @escaping () -> Void) {
+        recognizerName = "SFSpeechRecognizer"
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId)) else {
             fail("no speech recognizer for \(localeId)", fatal: true)
             return
@@ -201,11 +437,18 @@ final class VoiceIO: NSObject {
             emit(["type": "warn", "message": "on-device recognition unavailable; falling back to server-based (needs network)"])
         }
         restartRecognition()
+        done()
     }
 
     // MARK: Recognition
 
     private func restartRecognition() {
+        // The transcriber session does not expire, so a turn boundary is a
+        // finalize, not a teardown.
+        if usingTranscriber {
+            beginTurnBarrier()
+            return
+        }
         task?.cancel()
         task = nil
         request?.endAudio()
@@ -249,6 +492,44 @@ final class VoiceIO: NSObject {
 
             let backoff = min(2.0, 0.25 * Double(self.recogFailures))
             DispatchQueue.main.asyncAfter(deadline: .now() + backoff) { self.restartRecognition() }
+        }
+    }
+
+    /// Assembles a turn from transcriber results. Finalized text accumulates;
+    /// volatile text replaces whatever came before it.
+    private func handleTranscriberResult(_ text: String, isFinal: Bool) {
+        var running = ""
+        var suppressed = false
+        state.sync {
+            if isFinal {
+                finalizedText += text
+                volatileText = ""
+            } else {
+                volatileText = text
+            }
+            suppressed = awaitingBarrier
+            running = String(finalizedText.dropFirst(finalizedBase)) + volatileText
+        }
+        // Between taking a turn and the barrier landing, results still describe
+        // the turn just handed off. Emitting them would repeat it.
+        guard !suppressed else { return }
+        handleTranscript(running)
+    }
+
+    /// Draws a turn boundary. Promotes anything still volatile to final, then
+    /// moves the baseline past it so the next turn starts from empty text.
+    /// Must not be called from the `state` queue.
+    private func beginTurnBarrier() {
+        guard #available(macOS 26.0, *), let engine = transcriber as? TranscriberEngine else { return }
+        state.sync { awaitingBarrier = true }
+        Task {
+            await engine.finalizeTurn()
+            self.state.sync {
+                self.finalizedBase = self.finalizedText.count
+                self.volatileText = ""
+                self.partial = ""
+                self.awaitingBarrier = false
+            }
         }
     }
 
@@ -324,6 +605,7 @@ final class VoiceIO: NSObject {
             partial = ""
         }
         guard let utteranceText = next else { return }
+        beginTurnBarrier()
         emit(["type": "speech_start", "text": utteranceText])
         synthesize(utteranceText)
     }
@@ -395,6 +677,7 @@ final class VoiceIO: NSObject {
             spokenLower = text.lowercased()
             partial = ""
         }
+        beginTurnBarrier()
         emit(["type": "speech_start", "text": text])
     }
 

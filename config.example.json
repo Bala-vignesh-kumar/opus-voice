@@ -12,7 +12,7 @@
   "fillerDelayMs": 250,
   "narrateTools": true,
   "permissionMode": "acceptEdits",
-  "greeting": "Say jarvis when you need me.",
+  "greeting": "Say falcon when you need me.",
   "locale": "en-IN",
   "wakeWord": true,
   "awakeTimeoutMs": 30000

@@ -22,9 +22,9 @@ export const DEFAULTS = {
   endpointFastMs: 400,      // silence needed when you clearly finished a sentence
   bargeInWords: 2,          // words needed to interrupt, guards against stray noise
   fillerDelayMs: 250,       // grace period before the "let me think" beat
-  wakeWord: true,           // require "jarvis" before it answers anything
+  wakeWord: true,           // require "falcon" before it answers anything
   awakeTimeoutMs: 30000,    // silence in awake or chat mode before it sleeps again
-  greeting: 'Say jarvis when you need me.',
+  greeting: 'Say falcon when you need me.',
   ui: false,                // open the desktop window (npm run app sets this)
   uiPort: 4477,             // loopback port for the window; steps up if taken
 };

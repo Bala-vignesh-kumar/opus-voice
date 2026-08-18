@@ -27,7 +27,7 @@ Then:
 npm run app
 ```
 
-That's it. Say "jarvis".
+That's it. Say "falcon".
 
 ---
 

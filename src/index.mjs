@@ -148,7 +148,7 @@ function armSleep() {
 
 function startNotes() {
   notes.start();
-  setMode(MODE.NOTE, "okay, I'm taking notes. Say jarvis stop when you're done.");
+  setMode(MODE.NOTE, "okay, I'm taking notes. Say falcon stop when you're done.");
 }
 
 function finishNotes() {
@@ -237,6 +237,7 @@ voice.on('ready', (event) => {
     workdir,
     engine: speaker.name,
     locale: event.locale,
+    recognizer: event.recognizer,
   });
   if (!event.onDevice) {
     view.warn('on-device speech model missing — recognition is going over the network');
