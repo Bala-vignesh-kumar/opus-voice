@@ -52,6 +52,7 @@ class App {
         STUB_VOICE_INJECT: this.inject,
         ...(this.wakeFile ? { OPUS_VOICE_WAKE_FILE: this.wakeFile } : {}),
         OPUS_VOICE_WAKE_HOOK: this.hook,
+        OPUS_VOICE_IGNORE_CONFIG: '1',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });

@@ -41,8 +41,11 @@ export const DEFAULTS = {
 export function loadConfig(argv = process.argv.slice(2)) {
   let config = { ...DEFAULTS };
 
+  // Tests run against the defaults on purpose. Reading whatever config.json
+  // happens to be on the machine made the suite depend on local settings, so a
+  // developer changing one broke tests that had nothing to do with it.
   const file = path.join(ROOT, 'config.json');
-  if (fs.existsSync(file)) {
+  if (!process.env.OPUS_VOICE_IGNORE_CONFIG && fs.existsSync(file)) {
     try {
       config = { ...config, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
     } catch (err) {
