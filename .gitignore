@@ -14,3 +14,6 @@ notes/
 
 # Diagnostics bundle from ./scripts/doctor.sh — yours to send, not the repo's.
 opus-voice-diagnostics.txt
+
+# Your to-do list for whatever project you are talking about, not the repo's.
+todos.json
