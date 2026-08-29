@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { Conversation } from '../src/bus.mjs';
 import { UiServer } from '../src/server.mjs';
 
@@ -111,3 +114,30 @@ test('paths outside the ui directory are not served', async () => {
 function read__frame(chunk) {
   return chunk.replace(/^data: /, '').trim();
 }
+
+test('listening publishes the session, closing withdraws it', async () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'opus-srv-')), 'session.json');
+  const server = new UiServer(new Conversation(), () => {}, { port: nextPort++, sessionFile: file });
+  try {
+    const url = await server.listen();
+    const session = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.equal(session.url, url);
+    assert.equal(session.port, server.port);
+  } finally {
+    server.close();
+  }
+  // A session file outliving its server is a window pointed at nothing.
+  assert.equal(fs.existsSync(file), false);
+});
+
+test('the session can be turned off entirely', async () => {
+  const server = new UiServer(new Conversation(), () => {}, { port: nextPort++, sessionFile: null });
+  try {
+    await server.listen();
+  } finally {
+    server.close();
+  }
+  // Nothing to assert but the absence of a throw: a test run must never write
+  // over the developer's real session file.
+  assert.ok(true);
+});

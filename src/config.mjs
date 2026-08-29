@@ -36,6 +36,7 @@ export const DEFAULTS = {
 
   ui: false,                // open the desktop window (npm run app sets this)
   uiPort: 4477,             // loopback port for the window; steps up if taken
+  sessionFile: '',          // where to publish the session; empty = ~/.opus-voice/session.json
 };
 
 export function loadConfig(argv = process.argv.slice(2)) {

@@ -585,7 +585,10 @@ function handleCommand(command) {
 }
 
 async function openWindow() {
-  server = new UiServer(conversation, handleCommand, { port: config.uiPort });
+  server = new UiServer(conversation, handleCommand, {
+    port: config.uiPort,
+    sessionFile: config.sessionFile || undefined,
+  });
   const url = await server.listen();
 
   const binary = path.join(ROOT, 'bin/voiceapp');
