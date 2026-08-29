@@ -108,6 +108,48 @@ Whichever wins, the boundary is the same: `src/whisper.mjs` exposes
 `transcribe(pcm) → Promise<string>`, and `voiceio` gains an `utterance` event
 carrying the buffered audio. Changing engines later changes one module.
 
+## Measured
+
+**Measured 2026-08-30** by `scripts/measure-whisper.sh`, on an M-series Mac,
+`faster-whisper` 1.2.1 / CTranslate2 4.8.1, CPU, `compute_type="int8"`, against a
+**3.2s** sample saying *"what files are in this project and can you run the tests
+again"*. Models were already downloaded, so `load` is the cost of reading a cached
+model off disk, not of fetching it. Two runs; the second is quoted, the first
+differed only in `tiny` (0.65s, first-touch overhead).
+
+| model | load | transcribe | transcript |
+|---|---|---|---|
+| tiny | 0.6s | 0.18s | "What files are in this project and can you run the tests again?" |
+| base | 0.6s | 0.34s | "What files are in this project, and can you run the tests again?" |
+| small | 1.2s | 1.01s | "What files are in this project and can you run the tests again?" |
+| medium | 1.2s | 2.90s | "What files are in this project, and can you run the tests again?" |
+
+`base` chosen: every model transcribed this sample word-perfectly, so speed is the
+only discriminator, and `base` buys a margin over `tiny` for a third of `small`'s
+cost. Load is paid once at process start by the long-lived server, so only the
+transcribe column is felt per turn. `small` sits right on the spec's one-second
+line and `medium` is far past it; both are out.
+
+**The Python route is viable.** `pip install faster-whisper` succeeded on the
+existing Python 3.9.6 venv (faster-whisper 1.2.1, ctranslate2 4.8.1, av 15.1.0,
+tokenizers 0.22.2, huggingface-hub 1.8.0). No `cmake`, so `whisper.cpp` is not
+needed.
+
+**This measures speed only.** The sample is synthesised with the Piper voice already
+in `vendor/voices`, because these numbers had to be produced without the user at the
+microphone. Synthetic speech is clean American English and says nothing about how
+these models handle this speaker's Indian-English accent. **Follow-up before
+shipping:** re-run `./scripts/measure-whisper.sh` on a real 6s recording of the
+user's own voice and compare the `base` and `small` transcripts. If `base` misreads
+the user where `small` does not, `small` at ~1.0s is the fallback choice — and if
+even `small` misreads, Risk 1 applies.
+
+**One wrinkle for Task 6.** Under numpy 2.0.2 the feature extractor emits harmless
+`RuntimeWarning: overflow/invalid value encountered in matmul` on **stderr** for
+every transcription. Output is correct; the warnings appear on clean and dithered
+audio alike. The whisper server's supervisor must therefore not treat stderr output
+as a failure signal.
+
 ## Configuration
 
 Mirrors the existing TTS keys, so there is one idea to learn rather than two:
@@ -115,7 +157,7 @@ Mirrors the existing TTS keys, so there is one idea to learn rather than two:
 | key | default | meaning |
 |---|---|---|
 | `stt` | `whisper` | `whisper` (local) or `apple` (system recognizer) |
-| `whisperModel` | `small` | model size; the measurement may change this default before implementation, and records why |
+| `whisperModel` | `base` | model size; chosen by the measurement below — `base` transcribes a 3.2s utterance in ~0.33s, a third of `small`'s cost |
 | `whisperTimeoutMs` | `3000` | after this, use Apple's text for that turn |
 
 ## Failure handling
