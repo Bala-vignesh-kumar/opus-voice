@@ -42,3 +42,21 @@ if swiftc -O \
 else
   echo "note: voiceapp did not build — 'npm start' still works, 'npm run app' will open your browser"
 fi
+
+# The menu bar app. Like voiceapp it is optional — the terminal workflow does
+# not need it, so a failure here must not stop the audio daemon shipping.
+echo "building opusvoice…"
+if swiftc -O \
+  -o bin/opusvoice \
+  swift/MenuBarState.swift \
+  swift/Environment.swift \
+  swift/Orchestrator.swift \
+  swift/OpusVoiceApp.swift \
+  -framework AppKit \
+  -framework WebKit \
+  -framework ServiceManagement; then
+  codesign --force --sign - bin/opusvoice 2>/dev/null || true
+  echo "built bin/opusvoice"
+else
+  echo "note: opusvoice did not build — 'npm start' and 'npm run app' still work"
+fi
