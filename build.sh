@@ -17,6 +17,7 @@ echo "building voiceio…"
 swiftc -O \
   -o bin/voiceio \
   swift/VoiceIO.swift \
+  swift/Utterance.swift \
   -framework AVFoundation \
   -framework Speech \
   -Xlinker -sectcreate \

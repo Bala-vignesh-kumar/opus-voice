@@ -509,6 +509,7 @@ final class VoiceIO: NSObject {
     private func handleTranscriberResult(_ text: String, isFinal: Bool) {
         var running = ""
         var suppressed = false
+        var trace = ""
         state.sync {
             if isFinal {
                 finalizedText += text
@@ -518,6 +519,10 @@ final class VoiceIO: NSObject {
             }
             suppressed = awaitingBarrier
             running = String(finalizedText.dropFirst(finalizedBase)) + volatileText
+            trace = "final=\(isFinal) text=\(text.debugDescription) base=\(finalizedBase) finalized=\(finalizedText.count) running=\(running.debugDescription) barrier=\(awaitingBarrier)"
+        }
+        if ProcessInfo.processInfo.environment["OPUS_VOICE_TRACE"] != nil {
+            emit(["type": "warn", "message": "trace \(trace)"])
         }
         // Between taking a turn and the barrier landing, results still describe
         // the turn just handed off. Emitting them would repeat it.
@@ -545,6 +550,11 @@ final class VoiceIO: NSObject {
     private func handleTranscript(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        // The recognizer emits bare punctuation between utterances. A lone "."
+        // ends with a full stop, so the endpoint timer read it as a finished
+        // thought and took it as a turn on the fast path — Claude was asked "."
+        // and answered "Still here."
+        guard isSpeech(trimmed) else { return }
 
         var shouldBargeIn = false
         state.sync {
@@ -587,6 +597,9 @@ final class VoiceIO: NSObject {
             guard Date().timeIntervalSince(self.lastChange) * 1000 > threshold else { return }
             let text = self.partial
             self.partial = ""
+            // Second guard, at the only place a turn is created: whatever else
+            // changes upstream, nothing that nobody said becomes a question.
+            guard isSpeech(text) else { return }
             emit(["type": "final", "text": text])
             DispatchQueue.main.async { self.restartRecognition() }
         }
@@ -850,7 +863,9 @@ final class VoiceIO: NSObject {
                 partial = ""
             }
         case "standby":
-            io.setStandby(command["on"] as? Bool ?? true)
+            // Was reaching through the file-scope `io` to call itself; a plain
+            // self-call now that the entry point is scoped inside @main.
+            setStandby(command["on"] as? Bool ?? true)
         case "configure":
             configure(command)
         case "voices":
@@ -918,25 +933,34 @@ final class VoiceIO: NSObject {
 
 // MARK: - Main
 
-setvbuf(stdout, nil, _IONBF, 0)
+// @main rather than top-level code: this file is compiled alongside
+// Utterance.swift now, and only main.swift may carry statements at file scope.
+@main
+struct VoiceIOMain {
+  static func main() {
 
-let io = VoiceIO()
-if let index = CommandLine.arguments.firstIndex(of: "--locale"),
-   index + 1 < CommandLine.arguments.count {
-    io.setLocale(CommandLine.arguments[index + 1])
+  setvbuf(stdout, nil, _IONBF, 0)
+
+  let io = VoiceIO()
+  if let index = CommandLine.arguments.firstIndex(of: "--locale"),
+     index + 1 < CommandLine.arguments.count {
+      io.setLocale(CommandLine.arguments[index + 1])
+  }
+  io.start()
+
+  DispatchQueue.global(qos: .userInitiated).async {
+      while let line = readLine(strippingNewline: true) {
+          guard !line.isEmpty,
+                let data = line.data(using: .utf8),
+                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+          else { continue }
+          DispatchQueue.main.async { io.handle(obj) }
+      }
+      // stdin closed — the orchestrator is gone.
+      exit(0)
+  }
+
+  RunLoop.main.run()
+
+  }
 }
-io.start()
-
-DispatchQueue.global(qos: .userInitiated).async {
-    while let line = readLine(strippingNewline: true) {
-        guard !line.isEmpty,
-              let data = line.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { continue }
-        DispatchQueue.main.async { io.handle(obj) }
-    }
-    // stdin closed — the orchestrator is gone.
-    exit(0)
-}
-
-RunLoop.main.run()
