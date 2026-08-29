@@ -14,5 +14,6 @@ out="$work/swift-tests"
 echo "swift tests…"
 swiftc -o "$out" \
   swift/MenuBarState.swift swift/MenuBarStateTests.swift \
+  swift/Environment.swift swift/EnvironmentTests.swift \
   swift/TestMain.swift
 "$out"

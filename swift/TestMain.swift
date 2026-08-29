@@ -6,7 +6,7 @@ import Foundation
 @main
 struct SwiftTests {
   static func main() {
-    let failures = runMenuBarStateTests()
+    let failures = runMenuBarStateTests() + runEnvironmentTests()
     if failures > 0 {
       print("\(failures) failed")
       exit(1)
