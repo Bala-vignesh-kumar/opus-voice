@@ -19,6 +19,7 @@ swiftc -O \
   swift/VoiceIO.swift \
   swift/Utterance.swift \
   swift/TurnAssembler.swift \
+  swift/UtteranceBuffer.swift \
   -framework AVFoundation \
   -framework Speech \
   -Xlinker -sectcreate \

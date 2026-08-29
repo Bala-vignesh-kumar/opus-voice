@@ -218,6 +218,9 @@ final class VoiceIO: NSObject {
     /// in a way that reading it did not catch and a test did.
     private var turn = TurnAssembler()
 
+    /// The audio behind the current turn, for the second-opinion recognizer.
+    private let utterance = UtteranceBuffer()
+
     private var playFormat: AVAudioFormat!
     private var micFormat: AVAudioFormat!
     private var pcmFormat: AVAudioFormat?
@@ -343,6 +346,7 @@ final class VoiceIO: NSObject {
         input.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
             guard let self, let mono = self.mono(from: buffer) else { return }
             self.meter(mono)
+            self.utterance.append(self.samples16k(from: mono))
             if #available(macOS 26.0, *), let engine = self.transcriber as? TranscriberEngine {
                 engine.feed(mono)
             } else {
@@ -362,6 +366,23 @@ final class VoiceIO: NSObject {
         else { return nil }
         out.frameLength = buffer.frameLength
         memcpy(dest[0], source[0], Int(buffer.frameLength) * MemoryLayout<Float>.size)
+        return out
+    }
+
+    /// Whisper wants 16kHz mono float32. The microphone is usually 48kHz, so
+    /// this decimates rather than dragging in a converter for a 3x integer
+    /// ratio — the recognizer is not sensitive to the difference and an audio
+    /// thread should not be allocating an AVAudioConverter per buffer.
+    private func samples16k(from buffer: AVAudioPCMBuffer) -> [Float] {
+        guard let channel = buffer.floatChannelData?[0] else { return [] }
+        let stride = max(1, Int((buffer.format.sampleRate / 16000).rounded()))
+        var out: [Float] = []
+        out.reserveCapacity(Int(buffer.frameLength) / stride + 1)
+        var i = 0
+        while i < Int(buffer.frameLength) {
+            out.append(channel[i])
+            i += stride
+        }
         return out
     }
 
@@ -593,7 +614,29 @@ final class VoiceIO: NSObject {
             self.partial = ""
             // Second guard, at the only place a turn is created: whatever else
             // changes upstream, nothing that nobody said becomes a question.
-            guard isSpeech(text) else { return }
+            guard isSpeech(text) else {
+                // Drain anyway. That audio belonged to something that is not a
+                // turn, and leaving it in place would prepend it to whatever is
+                // said next — the second recognizer would then transcribe two
+                // unrelated stretches of speech as one question.
+                self.utterance.reset()
+                return
+            }
+            // Emitted before the final so the orchestrator has the audio in
+            // hand when the turn arrives, and never has to hold a turn open
+            // waiting for it.
+            // peak is read first: take() resets it along with the samples.
+            let peak = self.utterance.peak
+            let audio = self.utterance.take()
+            if !audio.isEmpty {
+                let bytes = audio.withUnsafeBufferPointer { Data(buffer: $0) }
+                emit([
+                    "type": "utterance",
+                    "pcm": bytes.base64EncodedString(),
+                    "sampleRate": 16000,
+                    "peak": peak,
+                ])
+            }
             emit(["type": "final", "text": text])
             DispatchQueue.main.async { self.restartRecognition() }
         }
@@ -622,6 +665,7 @@ final class VoiceIO: NSObject {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
             state.sync { partial = "" }
+            utterance.reset()
             emit(["type": "standby", "on": true])
             return
         }
