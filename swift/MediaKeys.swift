@@ -15,6 +15,7 @@
 // already proven, and node does not have to know this exists.
 
 import AppKit
+import IOKit.hid
 
 // NX_KEYTYPE_* from IOKit's hidsystem headers, which are not exposed to Swift.
 let MEDIA_KEY_PLAY = 16
@@ -63,6 +64,10 @@ func mediaKeyName(_ code: Int) -> String {
 /// Watches for the bound media key and pokes the wake file when it arrives.
 final class MediaKeyWatcher {
   private var monitor: Any?
+  /// Keystrokes, logged while verbose. Purely a control: without it, "no media
+  /// key events" cannot be told apart from "nobody pressed anything", and the
+  /// last three hours went into exactly that confusion.
+  private var control: Any?
   private let binding: Int
   private let onLog: (String) -> Void
   /// Logs every systemDefined event, not just media keys. On while we work out
@@ -81,16 +86,24 @@ final class MediaKeyWatcher {
     self.onLog = onLog
   }
 
-  /// Whether the app may observe events at all. Without this the monitor
-  /// installs happily and then never fires, which looks exactly like the
-  /// headphones not working.
-  static var permitted: Bool { AXIsProcessTrusted() }
+  /// Whether the app may observe events at all.
+  ///
+  /// Input Monitoring, not Accessibility. They are different TCC services and
+  /// granting the wrong one changes nothing: a global monitor installs happily
+  /// under either and only delivers events under this one, which is
+  /// indistinguishable from headphones that do not work.
+  static var permitted: Bool {
+    IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
+  }
 
-  /// Shows the system prompt. Only ever called from a menu item, because a
-  /// permission dialog nobody asked for is how apps get distrusted.
+  /// Asks for it, and opens the pane. Only ever called from a menu item,
+  /// because a permission dialog nobody asked for is how apps get distrusted.
   static func requestPermission() {
-    let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-    _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+    if let pane = URL(string:
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
+      NSWorkspace.shared.open(pane)
+    }
   }
 
   func start() {
@@ -99,8 +112,8 @@ final class MediaKeyWatcher {
     // happily and then never fire, which is indistinguishable from broken
     // headphones unless somebody writes down which one it was.
     onLog(MediaKeyWatcher.permitted
-      ? "media keys: accessibility granted, watching"
-      : "media keys: NOT PERMITTED — grant Accessibility, then restart the app")
+      ? "media keys: Input Monitoring granted, watching"
+      : "media keys: NOT PERMITTED — grant Input Monitoring (not Accessibility), then restart")
     monitor = NSEvent.addGlobalMonitorForEvents(matching: .systemDefined) { [weak self] event in
       guard let self else { return }
 
@@ -125,11 +138,23 @@ final class MediaKeyWatcher {
         self.poke()
       }
     }
+
+    if verbose {
+      var keys = 0
+      control = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] _ in
+        keys += 1
+        // Only the first few: this is proof of life, not a keylogger. No key
+        // codes are recorded, just that the stream is delivering at all.
+        if keys <= 3 { self?.onLog("control: keyboard events are being delivered") }
+      }
+    }
   }
 
   func stop() {
     if let monitor { NSEvent.removeMonitor(monitor) }
     monitor = nil
+    if let control { NSEvent.removeMonitor(control) }
+    control = nil
   }
 
   private func poke() {

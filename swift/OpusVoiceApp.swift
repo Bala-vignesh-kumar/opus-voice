@@ -162,7 +162,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     // denied permission looks identical to headphones that do not work.
     if !MediaKeyWatcher.permitted {
       let grant = NSMenuItem(
-        title: "Allow Headphone Wake…", action: #selector(grantMediaKeys), keyEquivalent: "")
+        title: "Allow Headphone Wake (Input Monitoring)…", action: #selector(grantMediaKeys), keyEquivalent: "")
       grant.target = self
       menu.addItem(grant)
     }
@@ -242,7 +242,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     // leaving somebody squeezing their headphones at an app that cannot hear.
     let alert = NSAlert()
     alert.messageText = "Restart opus voice after granting"
-    alert.informativeText = "Tick opus voice under Privacy & Security \u{203A} Accessibility, then quit and reopen it. macOS only applies the grant to a newly started process."
+    alert.informativeText = "Tick opus voice under Privacy & Security \u{203A} Input Monitoring — not Accessibility, they are different permissions. Then quit and reopen opus voice: macOS only applies the grant to a newly started process."
     alert.runModal()
   }
 

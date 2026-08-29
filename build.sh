@@ -55,6 +55,7 @@ if swiftc -O \
   swift/OpusVoiceApp.swift \
   -framework AppKit \
   -framework WebKit \
+  -framework IOKit \
   -framework ServiceManagement; then
   codesign --force --sign - bin/opusvoice 2>/dev/null || true
   echo "built bin/opusvoice"
