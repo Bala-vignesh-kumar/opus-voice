@@ -213,13 +213,10 @@ final class VoiceIO: NSObject {
     private var usingTranscriber = false
     private var recognizerName = "SFSpeechRecognizer"
 
-    /// Turn assembly for the transcriber path. Results arrive as revisable
-    /// "volatile" text followed by immutable finalized text, so a turn is
-    /// everything finalized past `finalizedBase` plus whatever is still volatile.
-    private var finalizedText = ""
-    private var volatileText = ""
-    private var finalizedBase = 0
-    private var awaitingBarrier = false
+    /// Turn assembly for the transcriber path. The baseline arithmetic lives in
+    /// TurnAssembler so it can be tested without an audio device — it was wrong
+    /// in a way that reading it did not catch and a test did.
+    private var turn = TurnAssembler()
 
     private var playFormat: AVAudioFormat!
     private var micFormat: AVAudioFormat!
@@ -511,15 +508,10 @@ final class VoiceIO: NSObject {
         var suppressed = false
         var trace = ""
         state.sync {
-            if isFinal {
-                finalizedText += text
-                volatileText = ""
-            } else {
-                volatileText = text
-            }
-            suppressed = awaitingBarrier
-            running = String(finalizedText.dropFirst(finalizedBase)) + volatileText
-            trace = "final=\(isFinal) text=\(text.debugDescription) base=\(finalizedBase) finalized=\(finalizedText.count) running=\(running.debugDescription) barrier=\(awaitingBarrier)"
+            turn.add(text, isFinal: isFinal)
+            suppressed = turn.awaitingBarrier
+            running = turn.running
+            trace = "final=\(isFinal) text=\(text.debugDescription) running=\(running.debugDescription) barrier=\(suppressed)"
         }
         if ProcessInfo.processInfo.environment["OPUS_VOICE_TRACE"] != nil {
             emit(["type": "warn", "message": "trace \(trace)"])
@@ -535,14 +527,16 @@ final class VoiceIO: NSObject {
     /// Must not be called from the `state` queue.
     private func beginTurnBarrier() {
         guard #available(macOS 26.0, *), let engine = transcriber as? TranscriberEngine else { return }
-        state.sync { awaitingBarrier = true }
+        // Recorded before the await, not after. Finalizing is asynchronous, and
+        // somebody who keeps talking through it has their words finalized while
+        // it is in flight — a baseline computed on completion swallowed them,
+        // which is how a whole sentence arrived as ".".
+        state.sync { turn.beginBarrier() }
         Task {
             await engine.finalizeTurn()
             self.state.sync {
-                self.finalizedBase = self.finalizedText.count
-                self.volatileText = ""
+                self.turn.endBarrier()
                 self.partial = ""
-                self.awaitingBarrier = false
             }
         }
     }

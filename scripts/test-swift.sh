@@ -16,5 +16,6 @@ swiftc -o "$out" \
   swift/MenuBarState.swift swift/MenuBarStateTests.swift \
   swift/Environment.swift swift/EnvironmentTests.swift \
   swift/Utterance.swift swift/UtteranceTests.swift \
+  swift/TurnAssembler.swift swift/TurnAssemblerTests.swift \
   swift/TestMain.swift
 "$out"
