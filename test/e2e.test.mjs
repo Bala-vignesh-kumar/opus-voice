@@ -538,3 +538,31 @@ test('the asleep line says how it can actually be woken', async () => {
     await holding.expect('asleep — say "hey falcon" to wake');
   } finally { holding.stop(); }
 });
+
+test('the server can be started without opening a window', async () => {
+  // A scratch session path: an e2e run must never write over the session the
+  // developer is actually using.
+  const session = path.join(os.tmpdir(), `opus-e2e-session-${process.pid}.json`);
+  const app = new App({ args: ['--ui', '--spawn-window', 'false', '--session-file', session] });
+  try {
+    // The no-spawn path says "serving the window at"; the spawning path says
+    // "window at". Only one of them can be on screen, which is the assertion.
+    // The needle stops before the url because the view wraps long lines.
+    await app.expect('serving the window at');
+    assert.ok(app.out.includes('http://127.0.0.1:'), 'no url was published');
+  } finally {
+    app.stop();
+    fs.rmSync(session, { force: true });
+  }
+});
+
+test('the token never travels through argv', async () => {
+  // argv is world-readable. A token in it can be lifted out of `ps` by any
+  // process on the machine and used to POST commands to something that can
+  // edit files and run shell commands.
+  const source = fs.readFileSync(path.join(ROOT, 'src', 'index.mjs'), 'utf8');
+  const spawnCall = /spawn\(binary,\s*(\[[^\]]*\])/.exec(source);
+  assert.ok(spawnCall, 'could not find where the window is spawned');
+  assert.equal(spawnCall[1].replace(/\s/g, ''), '[]',
+    'the window is being passed arguments; the session file is how it learns the url');
+});

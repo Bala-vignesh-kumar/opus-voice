@@ -270,6 +270,47 @@ voice from System Settings › Accessibility › Spoken Content › Manage Voice
 (Ava Premium is the good one) and set `"voice": "Ava"`. `npm run voices` shows what
 you have.
 
+## Running it at login
+
+`npm run bundle` builds `Opus Voice.app` into `/Applications` and registers it as
+a login item. It has no dock icon and opens no window — it is a menu bar glyph
+that tells you what it is doing:
+
+| glyph | meaning |
+|---|---|
+| 🌙 | running, asleep, microphone released |
+| 〰️ | awake and listening |
+| ⏺ | taking notes |
+| ⚠️ | something is wrong — the menu says what |
+
+Its menu has the same things you say out loud: discuss, take notes, sleep, plus
+Open Window and a **Start at Login** toggle. Turning it off there is the same
+switch as System Settings › General › Login Items.
+
+**It needs a project.** At login there is no working directory, so the app reads
+`"dir"` from `config.json` and refuses to start without it rather than picking a
+folder for you:
+
+```json
+"dir": "/Users/you/code/the-project"
+```
+
+That folder is what it can read, edit and run commands in, so it is worth
+choosing deliberately rather than pointing at your home directory.
+
+**It may ask for permissions again.** The bundle is a new identity as far as
+macOS is concerned, so Microphone and Speech Recognition can be requested once
+more even though your terminal already has them. When the prompt does appear it
+says *opus voice* rather than *Terminal*, which is the point.
+
+**Moving the repository breaks it.** The app records where the code is when you
+bundle it, and runs against your working tree rather than a copy — so `git pull`
+takes effect with no rebundle, and `vendor/` is not duplicated into
+`/Applications`. If you move the checkout, re-run `npm run bundle`.
+
+**To stop it entirely:** quit it from its own menu, and untick it in System
+Settings › General › Login Items so it does not come back at the next login.
+
 ## Troubleshooting
 
 **It starts, the mic indicator is on, but nothing you say registers.**
@@ -377,6 +418,8 @@ three independent guards against it interrupting itself.
 | `locale` | `en-IN` | accent the recognizer listens for |
 | `ui` | `false` | open the desktop window (`npm run app` sets it) |
 | `uiPort` | `4477` | loopback port for the window, steps up if taken |
+| `spawnWindow` | `true` | whether `--ui` also opens the window, or only serves it |
+| `sessionFile` | `~/.opus-voice/session.json` | where the session url is published |
 | `greeting` | *see config* | spoken at startup, `""` to disable |
 
 ```sh

@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { write as writeSession, clear as clearSession, DEFAULT_FILE as SESSION_FILE } from './session.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UI = path.join(ROOT, 'ui');
@@ -32,10 +33,13 @@ const TYPES = {
  * @param {(command: object) => void} onCommand  what the window asks for
  */
 export class UiServer {
-  constructor(conversation, onCommand, { port = 4477 } = {}) {
+  constructor(conversation, onCommand, { port = 4477, sessionFile = SESSION_FILE } = {}) {
     this.conversation = conversation;
     this.onCommand = onCommand;
     this.wanted = port;
+    // null turns publishing off, so a test run never writes over the session
+    // the developer is actually using.
+    this.sessionFile = sessionFile;
     this.token = crypto.randomBytes(16).toString('hex');
     this.clients = new Set();
     this.server = http.createServer((req, res) => this.#route(req, res));
@@ -56,6 +60,9 @@ export class UiServer {
         });
         this.server.listen(port, '127.0.0.1', () => {
           this.port = port;
+          // Published here rather than by the caller: the URL is only real once
+          // a port has actually been bound.
+          if (this.sessionFile) writeSession({ url: this.url, port, file: this.sessionFile });
           resolve(this.url);
         });
       };
@@ -159,6 +166,9 @@ export class UiServer {
   close() {
     for (const client of this.clients) client.end();
     this.clients.clear();
+    // A session file that outlives its server points the next window at a port
+    // nothing is listening on, which looks like the app being broken.
+    if (this.sessionFile) clearSession({ file: this.sessionFile });
     this.server.close();
   }
 }

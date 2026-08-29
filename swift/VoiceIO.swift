@@ -213,13 +213,10 @@ final class VoiceIO: NSObject {
     private var usingTranscriber = false
     private var recognizerName = "SFSpeechRecognizer"
 
-    /// Turn assembly for the transcriber path. Results arrive as revisable
-    /// "volatile" text followed by immutable finalized text, so a turn is
-    /// everything finalized past `finalizedBase` plus whatever is still volatile.
-    private var finalizedText = ""
-    private var volatileText = ""
-    private var finalizedBase = 0
-    private var awaitingBarrier = false
+    /// Turn assembly for the transcriber path. The baseline arithmetic lives in
+    /// TurnAssembler so it can be tested without an audio device — it was wrong
+    /// in a way that reading it did not catch and a test did.
+    private var turn = TurnAssembler()
 
     private var playFormat: AVAudioFormat!
     private var micFormat: AVAudioFormat!
@@ -509,15 +506,15 @@ final class VoiceIO: NSObject {
     private func handleTranscriberResult(_ text: String, isFinal: Bool) {
         var running = ""
         var suppressed = false
+        var trace = ""
         state.sync {
-            if isFinal {
-                finalizedText += text
-                volatileText = ""
-            } else {
-                volatileText = text
-            }
-            suppressed = awaitingBarrier
-            running = String(finalizedText.dropFirst(finalizedBase)) + volatileText
+            turn.add(text, isFinal: isFinal)
+            suppressed = turn.awaitingBarrier
+            running = turn.running
+            trace = "final=\(isFinal) text=\(text.debugDescription) running=\(running.debugDescription) barrier=\(suppressed)"
+        }
+        if ProcessInfo.processInfo.environment["OPUS_VOICE_TRACE"] != nil {
+            emit(["type": "warn", "message": "trace \(trace)"])
         }
         // Between taking a turn and the barrier landing, results still describe
         // the turn just handed off. Emitting them would repeat it.
@@ -530,14 +527,16 @@ final class VoiceIO: NSObject {
     /// Must not be called from the `state` queue.
     private func beginTurnBarrier() {
         guard #available(macOS 26.0, *), let engine = transcriber as? TranscriberEngine else { return }
-        state.sync { awaitingBarrier = true }
+        // Recorded before the await, not after. Finalizing is asynchronous, and
+        // somebody who keeps talking through it has their words finalized while
+        // it is in flight — a baseline computed on completion swallowed them,
+        // which is how a whole sentence arrived as ".".
+        state.sync { turn.beginBarrier() }
         Task {
             await engine.finalizeTurn()
             self.state.sync {
-                self.finalizedBase = self.finalizedText.count
-                self.volatileText = ""
+                self.turn.endBarrier()
                 self.partial = ""
-                self.awaitingBarrier = false
             }
         }
     }
@@ -545,6 +544,11 @@ final class VoiceIO: NSObject {
     private func handleTranscript(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        // The recognizer emits bare punctuation between utterances. A lone "."
+        // ends with a full stop, so the endpoint timer read it as a finished
+        // thought and took it as a turn on the fast path — Claude was asked "."
+        // and answered "Still here."
+        guard isSpeech(trimmed) else { return }
 
         var shouldBargeIn = false
         state.sync {
@@ -587,6 +591,9 @@ final class VoiceIO: NSObject {
             guard Date().timeIntervalSince(self.lastChange) * 1000 > threshold else { return }
             let text = self.partial
             self.partial = ""
+            // Second guard, at the only place a turn is created: whatever else
+            // changes upstream, nothing that nobody said becomes a question.
+            guard isSpeech(text) else { return }
             emit(["type": "final", "text": text])
             DispatchQueue.main.async { self.restartRecognition() }
         }
@@ -850,7 +857,9 @@ final class VoiceIO: NSObject {
                 partial = ""
             }
         case "standby":
-            io.setStandby(command["on"] as? Bool ?? true)
+            // Was reaching through the file-scope `io` to call itself; a plain
+            // self-call now that the entry point is scoped inside @main.
+            setStandby(command["on"] as? Bool ?? true)
         case "configure":
             configure(command)
         case "voices":
@@ -918,25 +927,34 @@ final class VoiceIO: NSObject {
 
 // MARK: - Main
 
-setvbuf(stdout, nil, _IONBF, 0)
+// @main rather than top-level code: this file is compiled alongside
+// Utterance.swift now, and only main.swift may carry statements at file scope.
+@main
+struct VoiceIOMain {
+  static func main() {
 
-let io = VoiceIO()
-if let index = CommandLine.arguments.firstIndex(of: "--locale"),
-   index + 1 < CommandLine.arguments.count {
-    io.setLocale(CommandLine.arguments[index + 1])
+  setvbuf(stdout, nil, _IONBF, 0)
+
+  let io = VoiceIO()
+  if let index = CommandLine.arguments.firstIndex(of: "--locale"),
+     index + 1 < CommandLine.arguments.count {
+      io.setLocale(CommandLine.arguments[index + 1])
+  }
+  io.start()
+
+  DispatchQueue.global(qos: .userInitiated).async {
+      while let line = readLine(strippingNewline: true) {
+          guard !line.isEmpty,
+                let data = line.data(using: .utf8),
+                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+          else { continue }
+          DispatchQueue.main.async { io.handle(obj) }
+      }
+      // stdin closed — the orchestrator is gone.
+      exit(0)
+  }
+
+  RunLoop.main.run()
+
+  }
 }
-io.start()
-
-DispatchQueue.global(qos: .userInitiated).async {
-    while let line = readLine(strippingNewline: true) {
-        guard !line.isEmpty,
-              let data = line.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { continue }
-        DispatchQueue.main.async { io.handle(obj) }
-    }
-    // stdin closed — the orchestrator is gone.
-    exit(0)
-}
-
-RunLoop.main.run()

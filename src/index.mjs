@@ -609,12 +609,25 @@ function handleCommand(command) {
 }
 
 async function openWindow() {
-  server = new UiServer(conversation, handleCommand, { port: config.uiPort });
+  server = new UiServer(conversation, handleCommand, {
+    port: config.uiPort,
+    sessionFile: config.sessionFile || undefined,
+  });
   const url = await server.listen();
+
+  // The menu bar app is the parent when it launched us, and it opens the window
+  // itself on demand. Spawning one here would put a window on screen at every
+  // login, which is the thing a menu bar app exists to avoid.
+  if (!config.spawnWindow) {
+    view.note(`serving the window at ${url}`);
+    return url;
+  }
 
   const binary = path.join(ROOT, 'bin/voiceapp');
   if (fs.existsSync(binary)) {
-    shell = spawn(binary, [url], { stdio: 'ignore' });
+    // No arguments: the window reads the session file, because the url carries
+    // the token and argv is world-readable.
+    shell = spawn(binary, [], { stdio: 'ignore' });
     // Closing the window ends the session — it is the whole interface when you
     // launched it this way.
     shell.on('exit', () => shutdown(0));
