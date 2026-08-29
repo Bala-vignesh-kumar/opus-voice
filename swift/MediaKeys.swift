@@ -65,6 +65,9 @@ final class MediaKeyWatcher {
   private var monitor: Any?
   private let binding: Int
   private let onLog: (String) -> Void
+  /// Logs every systemDefined event, not just media keys. On while we work out
+  /// what these headphones actually send.
+  var verbose = true
 
   /// Where the Siri Shortcut also writes. Reusing it means there is one way in
   /// from outside the app, and it is the one already known to work.
@@ -92,10 +95,23 @@ final class MediaKeyWatcher {
 
   func start() {
     stop()
+    // Said out loud at startup: a denied permission makes the monitor install
+    // happily and then never fire, which is indistinguishable from broken
+    // headphones unless somebody writes down which one it was.
+    onLog(MediaKeyWatcher.permitted
+      ? "media keys: accessibility granted, watching"
+      : "media keys: NOT PERMITTED — grant Accessibility, then restart the app")
     monitor = NSEvent.addGlobalMonitorForEvents(matching: .systemDefined) { [weak self] event in
-      guard
-        let self,
-        let press = decodeMediaKey(subtype: Int(event.subtype.rawValue), data1: event.data1)
+      guard let self else { return }
+
+      // Every systemDefined event, not just the aux-control ones. Whether any
+      // arrive at all is what separates "the permission is missing" from "these
+      // headphones do not use this event path", and those need opposite fixes.
+      if self.verbose {
+        self.onLog("systemDefined: subtype=\(event.subtype.rawValue) data1=\(event.data1)")
+      }
+
+      guard let press = decodeMediaKey(subtype: Int(event.subtype.rawValue), data1: event.data1)
       else { return }
 
       // Every media key is logged, not just the bound one. Which key a given

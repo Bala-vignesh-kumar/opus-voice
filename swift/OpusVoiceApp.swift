@@ -223,18 +223,17 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: launch.projectDir.path)
   }
 
-  /// Appends one line to the log node is writing. Opened and closed per line:
-  /// this fires a few times a day at most, and holding a second handle to a
-  /// file the child truncates on restart is how you get interleaved garbage.
+  /// Appends one line to the log node is writing. Opened per line and in
+  /// O_APPEND mode: this fires a few times a day at most, and a long-lived
+  /// second handle with its own offset would overwrite node's output rather
+  /// than interleave with it.
   private func appendToLog(_ message: String) {
     guard let log = orchestrator?.logFile else { return }
-    let stamped = "opus voice: \(message)\n"
-    guard let data = stamped.data(using: .utf8) else { return }
-    if let handle = try? FileHandle(forWritingTo: log) {
-      handle.seekToEndOfFile()
-      handle.write(data)
-      try? handle.close()
-    }
+    guard let data = "opus voice: \(message)\n".data(using: .utf8) else { return }
+    // Never truncating: node owns that, and this is the second writer.
+    let handle = Orchestrator.openLog(at: log, truncating: false)
+    handle.write(data)
+    try? handle.close()
   }
 
   @objc private func grantMediaKeys() {
