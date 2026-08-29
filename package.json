@@ -17,6 +17,7 @@
     "doctor": "./scripts/doctor.sh",
     "siri": "./scripts/siri-setup.sh",
     "test:node": "node --test 'test/*.test.mjs'",
-    "bundle": "./scripts/bundle.sh"
+    "bundle": "./scripts/bundle.sh",
+    "install-whisper": "./scripts/install-whisper.sh"
   }
 }

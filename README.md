@@ -311,6 +311,39 @@ takes effect with no rebundle, and `vendor/` is not duplicated into
 **To stop it entirely:** quit it from its own menu, and untick it in System
 Settings › General › Login Items so it does not come back at the next login.
 
+### The ears
+
+Recognition runs in two places at once. Apple's on-device recognizer drives what
+you see and feel — the live transcript, cutting it off mid-sentence, and knowing
+when your turn ended. **Whisper**, running locally, supplies the text that
+actually reaches Claude.
+
+The split is deliberate, because those are different jobs. Apple's recognizer is
+fast and perfectly good at "have two words been said". It is less good at an
+accent it was not tuned for — and that is exactly where it matters, in the words
+Claude reads.
+
+```sh
+npm run install-whisper
+```
+
+That fetches the engine and a model into `vendor/`. Nothing leaves the machine
+and there is no API key, the same as the voice.
+
+Set `"stt": "apple"` to turn it off and use Apple's text everywhere.
+`"whisperModel"` takes any faster-whisper name — larger is more accurate and
+slower. Measured here on a 3.2s sample: `base` 0.34s, `small` 1.01s, `medium`
+2.90s. Run `./scripts/measure-whisper.sh yours.wav` on a recording of your own
+voice rather than trusting those numbers, since the accent is the whole point.
+
+If Whisper is missing, crashes, hangs past `whisperTimeoutMs`, or returns
+something that looks invented from silence, the turn falls back to Apple's text.
+You should never lose a turn because the better recognizer was unavailable.
+
+**What this does not fix.** Whisper transcribes a finished utterance, so it adds
+its own time to every turn and cannot make the answer arrive sooner — the
+[Speed](#speed) floor is unchanged.
+
 ## Troubleshooting
 
 **It starts, the mic indicator is on, but nothing you say registers.**
@@ -399,6 +432,9 @@ three independent guards against it interrupting itself.
 |---|---|---|
 | `model` | `opus` | any alias the `claude` CLI accepts |
 | `effort` | `medium` | `low` is noticeably snappier, `high` thinks longer |
+| `stt` | `whisper` | `whisper` (local, better on accents) or `apple` |
+| `whisperModel` | `base` | faster-whisper model name |
+| `whisperTimeoutMs` | `3000` | after this, Apple's text is used for that turn |
 | `tts` | `piper` | `piper` (local neural) or `apple` (system voice) |
 | `piperVoice` | `en_US-hfc_female-medium` | Piper model name |
 | `voice` | *best installed* | Apple voice name, used when `tts` is `apple` |

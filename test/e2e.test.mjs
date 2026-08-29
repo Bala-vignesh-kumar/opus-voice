@@ -42,6 +42,9 @@ class App {
       // routing assertion into a timing one.
       '--awake-timeout-ms', '600000',
       '--dir', this.dir,
+      // Off unless a test asks for it. Otherwise every case would spawn a real
+      // Whisper and load a model, to transcribe audio the stub never recorded.
+      ...(whisperMode ? [] : ['--stt', 'apple']),
       ...this.args,
     ], {
       cwd: ROOT,
@@ -58,7 +61,7 @@ class App {
           STUB_WHISPER_MODE: whisperMode,
           OPUS_VOICE_WHISPER_BIN: process.execPath,
           OPUS_VOICE_WHISPER_SERVER: path.join(STUBS, 'whisper_server.mjs'),
-        } : { OPUS_VOICE_STT: 'apple' }),
+        } : {}),
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -80,6 +83,21 @@ class App {
       await new Promise((r) => setTimeout(r, 25));
     }
     throw new Error(`timed out waiting for ${JSON.stringify(needle)}\n--- output ---\n${this.out}`);
+  }
+
+  /**
+   * Waits until Claude has actually been asked something matching `needle`.
+   *
+   * expect() watches the display, which is written before the turn is sent, so
+   * asserting on asked() straight after it is a race the fast paths lose.
+   */
+  async asked_(needle, timeout = 8000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      if (this.asked().some((t) => t.includes(needle))) return true;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error(`Claude was never asked ${JSON.stringify(needle)}\n--- asked ---\n${JSON.stringify(this.asked(), null, 2)}`);
   }
 
   /** Everything that was actually sent to Claude, in order. */
@@ -579,9 +597,7 @@ test('a whisper transcription replaces the system recognizer text', async () => 
   const app = new App({ args: ['--stt', 'whisper', '--wake-word', 'false'], whisperMode: 'ok' });
   try {
     app.speak('what fights are in this project');
-    await app.expect('what files are in this project');
-    assert.ok(app.asked().some((t) => t.includes('what files are in this project')),
-      'Claude was asked the whisper text');
+    await app.asked_('what files are in this project');
   } finally { app.stop(); }
 });
 
@@ -590,8 +606,6 @@ test('a whisper failure falls back to the system recognizer', async () => {
   const app = new App({ args: ['--stt', 'whisper', '--wake-word', 'false'], whisperMode: 'error' });
   try {
     app.speak('what fights are in this project');
-    await app.expect('what fights are in this project');
-    assert.ok(app.asked().some((t) => t.includes('what fights are in this project')),
-      'the turn survived on the system recognizer text');
+    await app.asked_('what fights are in this project');
   } finally { app.stop(); }
 });
