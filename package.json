@@ -10,11 +10,12 @@
     "build": "./build.sh",
     "start": "node src/index.mjs",
     "app": "node src/index.mjs --ui",
-    "test": "node --test 'test/*.test.mjs'",
+    "test": "node --test 'test/*.test.mjs' && ./scripts/test-swift.sh",
     "voices": "node scripts/voices.mjs",
     "mic-test": "node scripts/mic-test.mjs",
     "install-piper": "./scripts/install-piper.sh",
     "doctor": "./scripts/doctor.sh",
-    "siri": "./scripts/siri-setup.sh"
+    "siri": "./scripts/siri-setup.sh",
+    "test:node": "node --test 'test/*.test.mjs'"
   }
 }
