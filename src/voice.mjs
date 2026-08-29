@@ -61,6 +61,9 @@ export class VoiceIO extends EventEmitter {
       case 'ready': this.emit('ready', event); break;
       case 'partial': this.emit('partial', event.text); break;
       case 'final': this.emit('final', event.text); break;
+      // The audio behind the turn, for the second-opinion recognizer. Arrives
+      // just before its `final`, so the orchestrator always has it in hand.
+      case 'utterance': this.emit('utterance', event); break;
       case 'bargein': this.emit('bargein'); break;
       case 'speech_start': this.speaking = true; this.emit('speech-start', event.text); break;
       case 'speech_end': this.speaking = false; this.emit('speech-end', event.interrupted); break;

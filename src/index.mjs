@@ -23,6 +23,8 @@ import { Notes, SUMMARY_PROMPT, splitSummary } from './notes.mjs';
 import { Todos } from './todos.mjs';
 import { parseTodo } from './todo-commands.mjs';
 import { createIssue } from './github.mjs';
+import { Whisper, available as whisperAvailable } from './whisper.mjs';
+import { acceptable } from './transcript-guard.mjs';
 import { Trigger, FILE as WAKE_FILE, HOOK } from './trigger.mjs';
 import { checkShortcut } from './siri.mjs';
 
@@ -53,6 +55,24 @@ const speaker = new Speaker(voice, {
   // reported from inside the constructor, so a later listener misses it.
   onWarn: (message) => view.warn(message),
 });
+// Local Whisper supplies the text that reaches Claude; Apple's recognizer keeps
+// driving partials, barge-in and endpointing, which is what it is good at. Not
+// installed means we use Apple's text everywhere, exactly as before this existed.
+let whisper = null;
+if (config.stt === 'whisper') {
+  if (whisperAvailable() || process.env.OPUS_VOICE_WHISPER_SERVER) {
+    whisper = new Whisper({
+      model: config.whisperModel,
+      timeoutMs: config.whisperTimeoutMs,
+      bin: process.env.OPUS_VOICE_WHISPER_BIN,
+      server: process.env.OPUS_VOICE_WHISPER_SERVER,
+    });
+    whisper.on('warn', (message) => view.warn(message));
+  } else {
+    view.warn('whisper is not installed — run npm run install-whisper');
+  }
+}
+
 const chunker = new SpeechChunker();
 const notes = new Notes();
 const todos = new Todos(workdir);
@@ -424,9 +444,24 @@ voice.on('partial', (text) => {
   view.hearing(text);
 });
 
-voice.on('final', (text) => {
+// The audio behind the turn, kept only until its `final` arrives.
+let lastUtterance = null;
+voice.on('utterance', (event) => { lastUtterance = event; });
+
+voice.on('final', async (text) => {
   view.clearLive();
-  handleUtterance(text);
+  const audio = lastUtterance;
+  lastUtterance = null;
+
+  let heard = text;
+  if (whisper && audio?.pcm) {
+    const better = await whisper.transcribe(audio.pcm, audio.sampleRate);
+    // Only take Whisper's word for it when what came back is plausibly speech.
+    // It invents stock phrases out of silence, and a turn nobody spoke is worse
+    // than a turn transcribed less well.
+    if (acceptable(better, audio.peak)) heard = better;
+  }
+  handleUtterance(heard);
 });
 
 voice.on('bargein', () => {
@@ -673,6 +708,7 @@ function shutdown(code = 0) {
   shell?.kill();
   keyboard.close();
   speaker.close();
+  whisper?.close();
   voice.close();
   claude.close();
   setTimeout(() => process.exit(code), 100).unref();

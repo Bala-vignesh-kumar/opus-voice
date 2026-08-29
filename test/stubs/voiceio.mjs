@@ -33,7 +33,18 @@ if (INJECT) {
     } catch {
       return;
     }
-    for (const text of lines.slice(consumed)) emit({ type: 'final', text });
+    for (const text of lines.slice(consumed)) {
+      // Real speech carries its audio: voiceio emits `utterance` just before
+      // the `final` it belongs to, so the orchestrator can hand it to the
+      // second recognizer without holding the turn open.
+      emit({
+        type: 'utterance',
+        pcm: Buffer.from(new Float32Array([0.5, -0.5, 0.4]).buffer).toString('base64'),
+        sampleRate: 16000,
+        peak: 0.5,
+      });
+      emit({ type: 'final', text });
+    }
     consumed = lines.length;
   }, 40).unref?.();
 }

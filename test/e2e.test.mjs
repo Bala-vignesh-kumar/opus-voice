@@ -23,7 +23,8 @@ const strip = (text) => text.replace(/\[[0-9;]*m/g, '');
 class App {
   /** Always runs in a scratch working directory: the app writes todos.json and
    *  notes/ into it, and a test run must never touch the project. */
-  constructor({ dir = null, args = [], wakeFile = null, hook = null } = {}) {
+  constructor({ dir = null, args = [], wakeFile = null, hook = null, whisperMode = null } = {}) {
+    this.whisperMode = whisperMode;
     this.args = args;
     this.wakeFile = wakeFile;
     // Point at the real hook by default so tests reflect a set-up machine.
@@ -53,6 +54,11 @@ class App {
         ...(this.wakeFile ? { OPUS_VOICE_WAKE_FILE: this.wakeFile } : {}),
         OPUS_VOICE_WAKE_HOOK: this.hook,
         OPUS_VOICE_IGNORE_CONFIG: '1',
+        ...(whisperMode ? {
+          STUB_WHISPER_MODE: whisperMode,
+          OPUS_VOICE_WHISPER_BIN: process.execPath,
+          OPUS_VOICE_WHISPER_SERVER: path.join(STUBS, 'whisper_server.mjs'),
+        } : { OPUS_VOICE_STT: 'apple' }),
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -565,4 +571,27 @@ test('the token never travels through argv', async () => {
   assert.ok(spawnCall, 'could not find where the window is spawned');
   assert.equal(spawnCall[1].replace(/\s/g, ''), '[]',
     'the window is being passed arguments; the session file is how it learns the url');
+});
+
+test('a whisper transcription replaces the system recognizer text', async () => {
+  // The whole point of the change: Apple hears the accent badly, Whisper hears
+  // it well, and Claude is asked what Whisper heard.
+  const app = new App({ args: ['--stt', 'whisper', '--wake-word', 'false'], whisperMode: 'ok' });
+  try {
+    app.speak('what fights are in this project');
+    await app.expect('what files are in this project');
+    assert.ok(app.asked().some((t) => t.includes('what files are in this project')),
+      'Claude was asked the whisper text');
+  } finally { app.stop(); }
+});
+
+test('a whisper failure falls back to the system recognizer', async () => {
+  // A turn is never lost because the better recognizer was unavailable.
+  const app = new App({ args: ['--stt', 'whisper', '--wake-word', 'false'], whisperMode: 'error' });
+  try {
+    app.speak('what fights are in this project');
+    await app.expect('what fights are in this project');
+    assert.ok(app.asked().some((t) => t.includes('what fights are in this project')),
+      'the turn survived on the system recognizer text');
+  } finally { app.stop(); }
 });
