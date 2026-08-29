@@ -16,6 +16,7 @@
     "install-piper": "./scripts/install-piper.sh",
     "doctor": "./scripts/doctor.sh",
     "siri": "./scripts/siri-setup.sh",
-    "test:node": "node --test 'test/*.test.mjs'"
+    "test:node": "node --test 'test/*.test.mjs'",
+    "bundle": "./scripts/bundle.sh"
   }
 }
