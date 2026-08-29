@@ -70,6 +70,19 @@ const COMMANDS = [
   { name: 'chat', keywords: [['discuss'], ['lets talk'], ["let's talk"], ['chat'], ['talk']] },
 ];
 
+// Words that may sit around a command without turning it into something else:
+// leading filler, and the inflections of the commands themselves.
+const COMMAND_FILLER = new Set([
+  'please', 'okay', 'ok', 'now', 'just', 'go', 'to', 'the', 'and', 'then',
+  'taking', 'talking',
+]);
+
+// Every word any keyword is made of, so one command phrase sitting next to
+// another — "stop taking notes" — still reads as the first one.
+const KEYWORD_WORDS = new Set(
+  COMMANDS.flatMap(({ keywords }) => keywords.flatMap(([phrase]) => phrase.split(' '))),
+);
+
 function normalize(text) {
   return text
     .toLowerCase()
@@ -132,6 +145,40 @@ function findWake(words) {
   return -1;
 }
 
+/** The words left after removing the first run of `needle`, or null if absent. */
+function without(words, needle) {
+  for (let i = 0; i + needle.length <= words.length; i += 1) {
+    if (needle.every((word, j) => words[i + j] === word)) {
+      return [...words.slice(0, i), ...words.slice(i + needle.length)];
+    }
+  }
+  return null;
+}
+
+/**
+ * Matches a mode command in the words following the wake phrase.
+ *
+ * A command has to be the whole instruction and nothing else — the same rule
+ * `parseCommand` applies to a bare utterance. Matching a keyword wherever it
+ * appeared meant "hey falcon, how do I stop the dev server" went to sleep and
+ * "hey falcon, summarize this file" answered that there was nothing to
+ * summarize, which is every one of those words doing the opposite of its job.
+ *
+ * @returns {string|null} the command name
+ */
+function tailCommand(words) {
+  if (words.length === 0 || words.length > MAX_BARE_WORDS) return null;
+
+  for (const { name, keywords } of COMMANDS) {
+    for (const [phrase] of keywords) {
+      const rest = without(words, phrase.split(' '));
+      if (!rest) continue;
+      if (rest.every((word) => COMMAND_FILLER.has(word) || KEYWORD_WORDS.has(word))) return name;
+    }
+  }
+  return null;
+}
+
 /**
  * Parses an utterance for the wake phrase and a mode command.
  *
@@ -150,13 +197,8 @@ export function parseWake(text) {
   const tail = after.join(' ');
   if (after.length === 0) return { wake: true, command: null, rest: '' };
 
-  for (const { name, keywords } of COMMANDS) {
-    for (const [phrase] of keywords) {
-      if (tail === phrase || tail.startsWith(`${phrase} `) || tail.includes(` ${phrase}`)) {
-        return { wake: true, command: name, rest: '' };
-      }
-    }
-  }
+  const command = tailCommand(after);
+  if (command) return { wake: true, command, rest: '' };
 
   // Woke it and immediately asked something: "falcon, why is the build slow?"
   return { wake: true, command: 'ask', rest: tail };

@@ -14,9 +14,14 @@ export class Speaker extends EventEmitter {
    * @param {object} options
    * @param {string} options.engine 'piper' or 'apple'
    * @param {string} options.piperVoice
+   * @param {(message: string) => void} [options.onWarn] Registered before
+   *   anything else, because a missing Piper voice is reported from inside this
+   *   constructor — a listener attached afterwards never hears it, and the user
+   *   gets the robotic fallback voice with no explanation for it.
    */
-  constructor(voice, { engine = 'apple', piperVoice = '' } = {}) {
+  constructor(voice, { engine = 'apple', piperVoice = '', onWarn = null } = {}) {
     super();
+    if (onWarn) this.on('warn', onWarn);
     this.voice = voice;
     this.engine = 'apple';
     this.queue = [];

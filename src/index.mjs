@@ -46,8 +46,13 @@ const claude = new ClaudeSession({
   cwd: workdir,
   permissionMode: config.permissionMode,
 });
-const speaker = new Speaker(voice, { engine: config.tts, piperVoice: config.piperVoice });
-speaker.on('warn', (message) => view.warn(message));
+const speaker = new Speaker(voice, {
+  engine: config.tts,
+  piperVoice: config.piperVoice,
+  // Passed in rather than attached afterwards: a missing Piper voice is
+  // reported from inside the constructor, so a later listener misses it.
+  onWarn: (message) => view.warn(message),
+});
 const chunker = new SpeechChunker();
 const notes = new Notes();
 const todos = new Todos(workdir);
@@ -294,7 +299,12 @@ function handleUtterance(text, { typed = false } = {}) {
       case 'note': startNotes(); return;
       case 'chat': setMode(MODE.CHAT, "sure, let's talk."); return;
       case 'stop': sleep(); return;
-      case 'summarize': setMode(MODE.AWAKE, "there's nothing to summarize yet."); return;
+      case 'summarize':
+        // Note mode is handled above, so reaching here with a discussion still
+        // held means an earlier summary was interrupted. Retry it.
+        if (notes.active) { finishNotes(); return; }
+        setMode(MODE.AWAKE, "there's nothing to summarize yet.");
+        return;
       case 'ask':
         if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, null);
         // A list instruction is not a question, and must not cost a turn.
@@ -323,7 +333,11 @@ function handleUtterance(text, { typed = false } = {}) {
       case 'stop': sleep(); return;
       case 'note': startNotes(); return;
       case 'chat': setMode(MODE.CHAT, "sure, let's talk."); return;
-      default: break;   // 'summarize' has nothing to summarize outside note mode
+      case 'summarize':
+        // Only means anything if an interrupted summary is still waiting.
+        if (notes.active) { finishNotes(); return; }
+        break;
+      default: break;
     }
   }
 
@@ -497,23 +511,33 @@ claude.on('turn-end', () => {
   if (pendingSummary) {
     pendingSummary = false;
     turn.silent = false;
-    const { title, actions, written, spoken } = splitSummary(turn.raw);
-    try {
-      const file = notes.save(workdir, written, title);
-      view.note(`notes saved to ${file}`);
+    // Interrupted mid-summary, or the model produced nothing. The discussion is
+    // still held — writing an empty file over it, and then clearing it, would
+    // lose the one thing note mode exists to keep. Say so and leave it staged
+    // so "hey falcon summarize" can try again.
+    if (turn.aborted || !turn.raw.trim()) {
+      view.warn('the summary was interrupted — the discussion is still held');
+      view.note(`say "${wakePhrase()} summarize" to write it`);
+      speaker.say('I did not finish those notes. Say summarize when you want them.');
+    } else {
+      const { title, actions, written, spoken } = splitSummary(turn.raw);
+      try {
+        const file = notes.save(workdir, written, title);
+        view.note(`notes saved to ${file}`);
 
-      // Action items become to-dos rather than a paragraph you have to reread.
-      // They are added, never filed as issues — that stays an explicit act.
-      const added = actions.filter((text) => todos.add(text, { source: 'notes' })).length;
-      if (added) {
-        pushTodos();
-        view.note(`${added} action item${added === 1 ? '' : 's'} added to your list`);
+        // Action items become to-dos rather than a paragraph you have to reread.
+        // They are added, never filed as issues — that stays an explicit act.
+        const added = actions.filter((text) => todos.add(text, { source: 'notes' })).length;
+        if (added) {
+          pushTodos();
+          view.note(`${added} action item${added === 1 ? '' : 's'} added to your list`);
+        }
+
+        const tail = added ? ` I put ${added === 1 ? 'one action item' : `${added} action items`} on your list.` : '';
+        speaker.say(`${spoken || 'Notes saved.'}${tail}`);
+      } catch (err) {
+        view.error(`could not save notes: ${err.message}`);
       }
-
-      const tail = added ? ` I put ${added === 1 ? 'one action item' : `${added} action items`} on your list.` : '';
-      speaker.say(`${spoken || 'Notes saved.'}${tail}`);
-    } catch (err) {
-      view.error(`could not save notes: ${err.message}`);
     }
   }
 

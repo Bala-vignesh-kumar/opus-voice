@@ -82,6 +82,29 @@ test('stop wins over note when both words appear', () => {
   assert.equal(parseWake('Hey Falcon stop taking notes').command, 'stop');
 });
 
+test('a command after the name must be the whole instruction', () => {
+  // A keyword matched anywhere in the tail meant the most ordinary questions a
+  // developer asks were swallowed by the mode machinery instead of answered.
+  for (const heard of [
+    'hey falcon how do I stop the dev server',
+    'hey falcon can we talk about the parser',
+    'hey falcon should I quit my job',
+    'hey falcon summarize this file',
+    'hey falcon is the deploy done yet',
+    'hey falcon what are my notes for today',
+  ]) {
+    assert.equal(parseWake(heard).command, 'ask', `swallowed as a command: ${heard}`);
+  }
+});
+
+test('filler around a command does not stop it being one', () => {
+  assert.equal(parseWake('Hey Falcon please stop').command, 'stop');
+  assert.equal(parseWake('hey falcon okay go to sleep').command, 'stop');
+  assert.equal(parseWake('Hey Falcon wrap it up').command, 'summarize');
+  // Past four words it is a sentence, not an instruction, whatever it contains.
+  assert.equal(parseWake('hey falcon okay go to sleep now please').command, 'ask');
+});
+
 test('bare commands work without the name', () => {
   assert.equal(parseCommand('Go to sleep'), 'stop');
   assert.equal(parseCommand('stop'), 'stop');
