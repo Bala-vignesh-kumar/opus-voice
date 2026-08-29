@@ -25,6 +25,16 @@ final class Orchestrator {
       .appendingPathComponent(".opus-voice/session.json")
   }
 
+  /// Everything node prints. Sent to a file rather than /dev/null because the
+  /// terminal surface says things worth reading — which recognizer came up,
+  /// whether the on-device model is missing, and above all that the microphone
+  /// was released and only Siri can wake it. Discarding those made the app
+  /// silent about the one thing a person would be standing there wondering.
+  var logFile: URL {
+    FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent(".opus-voice/opus-voice.log")
+  }
+
   init(launch: Launch, onChange: @escaping () -> Void) {
     self.launch = launch
     self.onChange = onChange
@@ -60,9 +70,30 @@ final class Orchestrator {
       "--dir", launch.projectDir.path,
     ]
     process.currentDirectoryURL = launch.repoRoot
-    // Nothing reads these, and an unread pipe fills up and blocks the child.
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
+
+    // A file, not a pipe: an unread pipe fills up and blocks the child, and
+    // nothing here is going to sit and drain one. Truncated per launch so it
+    // describes this run rather than every run since the app was installed.
+    // 0600, for the same reason the session file is: the terminal surface prints
+    // the window url, and that url carries the token that authorises commands.
+    // A world-readable log would put back exactly the leak that moving off argv
+    // took away.
+    let fm = FileManager.default
+    if !fm.fileExists(atPath: logFile.path) {
+      fm.createFile(atPath: logFile.path, contents: nil,
+                    attributes: [.posixPermissions: 0o600])
+    } else {
+      try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logFile.path)
+    }
+    let handle: FileHandle
+    if let existing = try? FileHandle(forWritingTo: logFile) {
+      existing.truncateFile(atOffset: 0)
+      handle = existing
+    } else {
+      handle = .nullDevice
+    }
+    process.standardOutput = handle
+    process.standardError = handle
     process.terminationHandler = { [weak self] _ in
       DispatchQueue.main.async { self?.died() }
     }

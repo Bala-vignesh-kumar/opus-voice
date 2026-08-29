@@ -115,6 +115,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       problem.isEnabled = false
       menu.addItem(problem)
       menu.addItem(.separator())
+      menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "").target = self
       menu.addItem(withTitle: "Quit opus voice", action: #selector(quit), keyEquivalent: "q").target = self
       return menu
     }
@@ -131,6 +132,9 @@ final class MenuBar: NSObject, NSApplicationDelegate {
 
     menu.addItem(.separator())
     menu.addItem(withTitle: "Open Project Folder", action: #selector(openProject), keyEquivalent: "").target = self
+    // Everything the terminal surface would have told you. Without this the app
+    // is the only surface that cannot explain itself.
+    menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "").target = self
 
     let login = NSMenuItem(title: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
     login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -186,6 +190,11 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       repoRoot: info?["OVRepoRoot"] as? String, nodePath: info?["OVNodePath"] as? String)
     else { return }
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: launch.projectDir.path)
+  }
+
+  @objc private func openLog() {
+    guard let log = orchestrator?.logFile else { return }
+    NSWorkspace.shared.open(log)
   }
 
   @objc private func toggleLogin() {

@@ -16,7 +16,13 @@ async function start() {
   const conversation = new Conversation();
   const commands = [];
   // A high port keeps a test run from colliding with a real session.
-  const server = new UiServer(conversation, (c) => commands.push(c), { port: nextPort++ });
+  // sessionFile null, always. The default is the developer's real session, and
+  // close() removes it — so a suite that leaves it out deletes the session of
+  // whatever app happens to be running while the tests are.
+  const server = new UiServer(conversation, (c) => commands.push(c), {
+    port: nextPort++,
+    sessionFile: null,
+  });
   const url = await server.listen();
   const base = `http://127.0.0.1:${server.port}`;
   return { conversation, commands, server, url, base, token: server.token };
@@ -140,4 +146,19 @@ test('the session can be turned off entirely', async () => {
   // Nothing to assert but the absence of a throw: a test run must never write
   // over the developer's real session file.
   assert.ok(true);
+});
+
+test('the suite never touches the real session file', async () => {
+  // Regression: every server test but two left sessionFile at its default,
+  // which is ~/.opus-voice/session.json. Running the suite while the menu bar
+  // app was up wrote over its session and then deleted it on close.
+  const real = path.join(os.homedir(), '.opus-voice', 'session.json');
+  const before = fs.existsSync(real) ? fs.readFileSync(real, 'utf8') : null;
+
+  const server = new UiServer(new Conversation(), () => {}, { port: nextPort++, sessionFile: null });
+  await server.listen();
+  server.close();
+
+  const after = fs.existsSync(real) ? fs.readFileSync(real, 'utf8') : null;
+  assert.equal(after, before, 'a test changed the real session file');
 });
