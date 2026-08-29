@@ -84,9 +84,31 @@ final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   }
 }
 
-let arguments = CommandLine.arguments
-guard arguments.count > 1, let target = URL(string: arguments[1]) else {
-  FileHandle.standardError.write("usage: voiceapp <url>\n".data(using: .utf8)!)
+/// Where the running session says it can be reached.
+///
+/// Read from a 0600 file rather than taken as an argument, because the URL
+/// carries the token that authorises commands, and argv is world-readable: any
+/// process on the machine can lift it out of `ps`.
+func sessionURL() -> URL? {
+  // An explicit argument still wins, so the window can be pointed at a session
+  // by hand while debugging.
+  if CommandLine.arguments.count > 1, let given = URL(string: CommandLine.arguments[1]) {
+    return given
+  }
+  let file = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent(".opus-voice/session.json")
+  guard
+    let data = try? Data(contentsOf: file),
+    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    let text = json["url"] as? String,
+    let parsed = URL(string: text)
+  else { return nil }
+  return parsed
+}
+
+guard let target = sessionURL() else {
+  FileHandle.standardError.write(
+    "voiceapp: no session — start opus voice first, or pass a url\n".data(using: .utf8)!)
   exit(2)
 }
 

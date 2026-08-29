@@ -555,3 +555,14 @@ test('the server can be started without opening a window', async () => {
     fs.rmSync(session, { force: true });
   }
 });
+
+test('the token never travels through argv', async () => {
+  // argv is world-readable. A token in it can be lifted out of `ps` by any
+  // process on the machine and used to POST commands to something that can
+  // edit files and run shell commands.
+  const source = fs.readFileSync(path.join(ROOT, 'src', 'index.mjs'), 'utf8');
+  const spawnCall = /spawn\(binary,\s*(\[[^\]]*\])/.exec(source);
+  assert.ok(spawnCall, 'could not find where the window is spawned');
+  assert.equal(spawnCall[1].replace(/\s/g, ''), '[]',
+    'the window is being passed arguments; the session file is how it learns the url');
+});
