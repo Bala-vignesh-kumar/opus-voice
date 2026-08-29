@@ -84,14 +84,22 @@ func resolveLaunch(
 }
 
 
-/// Which media key wakes it, from config.json. Defaults to next-track, which is
-/// a double squeeze on AirPods — chosen over play/pause because skipping a
-/// track by accident costs less than pausing what you were listening to.
-func mediaKeyBinding(inConfigAt file: URL) -> Int {
+
+/// A string setting from config.json, or nil.
+func stringSetting(_ key: String, inConfigAt file: URL) -> String? {
+  guard
+    let data = try? Data(contentsOf: file),
+    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+  else { return nil }
+  return json[key] as? String
+}
+
+/// A boolean setting from config.json, falling back when absent.
+func boolSetting(_ key: String, inConfigAt file: URL, default fallback: Bool) -> Bool {
   guard
     let data = try? Data(contentsOf: file),
     let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-    let code = json["wakeMediaKey"] as? Int
-  else { return MEDIA_KEY_NEXT }
-  return code
+    let value = json[key] as? Bool
+  else { return fallback }
+  return value
 }

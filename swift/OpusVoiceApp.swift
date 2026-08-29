@@ -14,7 +14,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   private var launchProblem: LaunchProblem?
   private var window: NSWindow?
   private var stream: Task<Void, Never>?
-  private var mediaKeys: MediaKeyWatcher?
+  private var headphones: RemoteCommandWatcher?
 
   private var mode = "asleep"
   private var status: String?
@@ -41,36 +41,33 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       }
       self.orchestrator = orchestrator
       orchestrator.start()
-      startMediaKeys(launch: launch)
+      startHeadphoneWake(launch: launch)
       registerLoginItemOnce()
     }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
     stream?.cancel()
-    mediaKeys?.stop()
+    headphones?.stop()
     orchestrator?.stop()
   }
 
-  /// Squeeze the headphones to wake it. Every media key seen goes to the log,
-  /// whether or not it is the bound one, because which key a given pair of
-  /// headphones sends is a question only the hardware can answer.
-  private func startMediaKeys(launch: Launch) {
-    let binding = mediaKeyBinding(
-      inConfigAt: launch.repoRoot.appendingPathComponent("config.json"))
-    let watcher = MediaKeyWatcher(binding: binding) { [weak self] message in
-      // Appended to the same log node writes, so there is one place to look.
-      // The app's own stderr goes to the system log when launchd starts it,
-      // which is nowhere a person would think to look.
+  /// Squeeze the headphones to wake it.
+  ///
+  /// Measured, not assumed: AirPods send AVRCP commands that macOS routes to
+  /// the Now Playing app, never HID media keys. A global NSEvent monitor with
+  /// every permission granted saw nothing; this path sees every squeeze.
+  private func startHeadphoneWake(launch: Launch) {
+    let config = launch.repoRoot.appendingPathComponent("config.json")
+    let watcher = RemoteCommandWatcher(
+      gesture: WakeGesture.named(stringSetting("wakeGesture", inConfigAt: config)),
+      forwardToPlayer: boolSetting("forwardMediaKeys", inConfigAt: config, default: true)
+    ) { [weak self] message in
       self?.appendToLog(message)
     }
-    mediaKeys = watcher
+    headphones = watcher
     watcher.start()
-    if !MediaKeyWatcher.permitted {
-      NSLog("opus voice: media keys need Accessibility — see the menu")
-    }
   }
-
   // MARK: state
 
   private var failureMessage: String? {
@@ -158,15 +155,6 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     // is the only surface that cannot explain itself.
     menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "").target = self
 
-    // Named for what is wrong rather than what it does, because a silently
-    // denied permission looks identical to headphones that do not work.
-    if !MediaKeyWatcher.permitted {
-      let grant = NSMenuItem(
-        title: "Allow Headphone Wake (Input Monitoring)…", action: #selector(grantMediaKeys), keyEquivalent: "")
-      grant.target = self
-      menu.addItem(grant)
-    }
-
     let login = NSMenuItem(title: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
     login.state = SMAppService.mainApp.status == .enabled ? .on : .off
     login.target = self
@@ -234,16 +222,6 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     let handle = Orchestrator.openLog(at: log, truncating: false)
     handle.write(data)
     try? handle.close()
-  }
-
-  @objc private func grantMediaKeys() {
-    MediaKeyWatcher.requestPermission()
-    // The grant only applies to a freshly started process, and saying so beats
-    // leaving somebody squeezing their headphones at an app that cannot hear.
-    let alert = NSAlert()
-    alert.messageText = "Restart opus voice after granting"
-    alert.informativeText = "Tick opus voice under Privacy & Security \u{203A} Input Monitoring — not Accessibility, they are different permissions. Then quit and reopen opus voice: macOS only applies the grant to a newly started process."
-    alert.runModal()
   }
 
   @objc private func openLog() {

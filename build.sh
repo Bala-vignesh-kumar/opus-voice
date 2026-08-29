@@ -50,12 +50,12 @@ if swiftc -O \
   -o bin/opusvoice \
   swift/MenuBarState.swift \
   swift/Environment.swift \
-  swift/MediaKeys.swift \
+  swift/RemoteCommands.swift \
   swift/Orchestrator.swift \
   swift/OpusVoiceApp.swift \
   -framework AppKit \
   -framework WebKit \
-  -framework IOKit \
+  -framework MediaPlayer \
   -framework ServiceManagement; then
   codesign --force --sign - bin/opusvoice 2>/dev/null || true
   echo "built bin/opusvoice"
