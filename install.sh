@@ -285,5 +285,6 @@ fi
 printf '%sstart it%s\n\n' "$bold" "$reset"
 printf '    cd %s\n' "$ROOT"
 printf '    npm run app        %s# desktop window%s\n' "$dim" "$reset"
-printf '    npm start          %s# terminal%s\n\n' "$dim" "$reset"
+printf '    npm start          %s# terminal%s\n' "$dim" "$reset"
+printf '    npm run bundle     %s# menu bar app, started at login%s\n\n' "$dim" "$reset"
 printf '  %sThen say "hey falcon".%s\n\n' "$dim" "$reset"

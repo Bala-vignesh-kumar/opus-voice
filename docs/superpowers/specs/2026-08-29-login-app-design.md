@@ -204,7 +204,16 @@ tracks those grants per signing identity and the app is not the terminal.
 This is a one-time cost that buys the thing the README currently apologises for:
 the prompt names *opus voice* instead of *Terminal*.
 
-**Open question, to be answered empirically before anything else is built.** Audio is touched by
+**Partly resolved 2026-08-29.** The bundle was built and launched and the app
+works: the menu bar shows asleep, the menu's mode commands reach the session, and
+the microphone is heard. No permission prompt appeared at all, which means an
+existing grant already covered it rather than a new one being requested — so the
+observation confirms the app functions but does **not** settle which identity
+holds the grant. On a machine with no prior grant the prompt could still name
+`voiceio`. The fallback below stays documented and untested; if a fresh install
+ever shows the wrong name, apply it.
+
+The original question, kept because it is still the thing to check: audio is touched by
 `bin/voiceio`, a grandchild of the app. macOS attributes a permission prompt to
 the *responsible process*, which for a tree descending from a GUI bundle is
 normally the bundle — but `voiceio` carries its own linked `Info.plist` and its
