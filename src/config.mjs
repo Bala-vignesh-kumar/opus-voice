@@ -35,6 +35,7 @@ export const DEFAULTS = {
 
 
   ui: false,                // open the desktop window (npm run app sets this)
+  spawnWindow: true,        // whether --ui also launches bin/voiceapp
   uiPort: 4477,             // loopback port for the window; steps up if taken
   sessionFile: '',          // where to publish the session; empty = ~/.opus-voice/session.json
 };
