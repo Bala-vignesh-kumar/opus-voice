@@ -50,6 +50,7 @@ if swiftc -O \
   -o bin/opusvoice \
   swift/MenuBarState.swift \
   swift/Environment.swift \
+  swift/MediaKeys.swift \
   swift/Orchestrator.swift \
   swift/OpusVoiceApp.swift \
   -framework AppKit \

@@ -14,6 +14,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   private var launchProblem: LaunchProblem?
   private var window: NSWindow?
   private var stream: Task<Void, Never>?
+  private var mediaKeys: MediaKeyWatcher?
 
   private var mode = "asleep"
   private var status: String?
@@ -40,13 +41,34 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       }
       self.orchestrator = orchestrator
       orchestrator.start()
+      startMediaKeys(launch: launch)
       registerLoginItemOnce()
     }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
     stream?.cancel()
+    mediaKeys?.stop()
     orchestrator?.stop()
+  }
+
+  /// Squeeze the headphones to wake it. Every media key seen goes to the log,
+  /// whether or not it is the bound one, because which key a given pair of
+  /// headphones sends is a question only the hardware can answer.
+  private func startMediaKeys(launch: Launch) {
+    let binding = mediaKeyBinding(
+      inConfigAt: launch.repoRoot.appendingPathComponent("config.json"))
+    let watcher = MediaKeyWatcher(binding: binding) { [weak self] message in
+      // Appended to the same log node writes, so there is one place to look.
+      // The app's own stderr goes to the system log when launchd starts it,
+      // which is nowhere a person would think to look.
+      self?.appendToLog(message)
+    }
+    mediaKeys = watcher
+    watcher.start()
+    if !MediaKeyWatcher.permitted {
+      NSLog("opus voice: media keys need Accessibility — see the menu")
+    }
   }
 
   // MARK: state
@@ -136,6 +158,15 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     // is the only surface that cannot explain itself.
     menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "").target = self
 
+    // Named for what is wrong rather than what it does, because a silently
+    // denied permission looks identical to headphones that do not work.
+    if !MediaKeyWatcher.permitted {
+      let grant = NSMenuItem(
+        title: "Allow Headphone Wake…", action: #selector(grantMediaKeys), keyEquivalent: "")
+      grant.target = self
+      menu.addItem(grant)
+    }
+
     let login = NSMenuItem(title: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
     login.state = SMAppService.mainApp.status == .enabled ? .on : .off
     login.target = self
@@ -190,6 +221,30 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       repoRoot: info?["OVRepoRoot"] as? String, nodePath: info?["OVNodePath"] as? String)
     else { return }
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: launch.projectDir.path)
+  }
+
+  /// Appends one line to the log node is writing. Opened and closed per line:
+  /// this fires a few times a day at most, and holding a second handle to a
+  /// file the child truncates on restart is how you get interleaved garbage.
+  private func appendToLog(_ message: String) {
+    guard let log = orchestrator?.logFile else { return }
+    let stamped = "opus voice: \(message)\n"
+    guard let data = stamped.data(using: .utf8) else { return }
+    if let handle = try? FileHandle(forWritingTo: log) {
+      handle.seekToEndOfFile()
+      handle.write(data)
+      try? handle.close()
+    }
+  }
+
+  @objc private func grantMediaKeys() {
+    MediaKeyWatcher.requestPermission()
+    // The grant only applies to a freshly started process, and saying so beats
+    // leaving somebody squeezing their headphones at an app that cannot hear.
+    let alert = NSAlert()
+    alert.messageText = "Restart opus voice after granting"
+    alert.informativeText = "Tick opus voice under Privacy & Security \u{203A} Accessibility, then quit and reopen it. macOS only applies the grant to a newly started process."
+    alert.runModal()
   }
 
   @objc private func openLog() {
