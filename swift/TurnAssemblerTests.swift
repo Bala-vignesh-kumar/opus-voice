@@ -70,6 +70,20 @@ func runTurnAssemblerTests() -> Int {
   d.add("next", isFinal: true)
   expect(d.running, "next", "and the turn after it still works")
 
+  // A turn does not open with punctuation. The recognizer emits a bare "."
+  // between utterances; landing it in an empty turn produced ". good."
+  var f = TurnAssembler()
+  f.add(".", isFinal: true)
+  expect(f.running, "", "a stray full stop does not open a turn")
+  f.add("good", isFinal: true)
+  expect(f.running, "good", "and the real words arrive clean")
+
+  // Inside a turn it is the recognizer punctuating, and must be kept.
+  var g = TurnAssembler()
+  g.add("stop", isFinal: true)
+  g.add(".", isFinal: true)
+  expect(g.running, "stop.", "punctuation inside a turn is kept")
+
   if failures == 0 { print("  ✓ turn assembly") }
   return failures
 }

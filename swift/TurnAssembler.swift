@@ -28,6 +28,14 @@ struct TurnAssembler {
 
   mutating func add(_ text: String, isFinal: Bool) {
     if isFinal {
+      // A turn does not open with punctuation. The recognizer emits a bare "."
+      // between utterances, and landing it in an empty turn put a full stop in
+      // front of the next thing said — ". good." — which then reached Claude
+      // as a sentence beginning with nothing.
+      //
+      // Only at the front: punctuation inside a turn is the recognizer doing
+      // its job, and stripping that would run words together.
+      if finalized.isEmpty, !isSpeech(text) { return }
       finalized += text
       volatileText = ""
     } else {
