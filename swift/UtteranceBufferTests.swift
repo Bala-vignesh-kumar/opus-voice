@@ -34,6 +34,21 @@ func runUtteranceBufferTests() -> Int {
   _ = d.take()
   check(d.peak == 0, "peak resets with the buffer")
 
+  // A turn is the utterance, not everything heard since the last one. Without
+  // this the second recognizer got 27s of room noise with a sentence in it and
+  // dutifully transcribed the noise as well.
+  let e = UtteranceBuffer(sampleRate: 4, maxSeconds: 30)
+  e.append([1, 2, 3, 4, 5, 6, 7, 8])
+  e.trimToLast(seconds: 1.0)
+  check(e.take() == [5, 6, 7, 8], "trimming keeps the most recent second")
+
+  // The tail, because speech starts before the recognizer reports it — this is
+  // the pre-roll that keeps the first word of the turn.
+  let f = UtteranceBuffer(sampleRate: 4, maxSeconds: 30)
+  f.append([1, 2])
+  f.trimToLast(seconds: 5.0)
+  check(f.take() == [1, 2], "trimming to more than exists keeps everything")
+
   if failures == 0 { print("  ✓ utterance buffer") }
   return failures
 }

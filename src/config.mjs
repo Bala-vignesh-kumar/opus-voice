@@ -13,6 +13,7 @@ export const DEFAULTS = {
   permissionMode: 'bypassPermissions',
   narrateTools: true,
   locale: 'en-IN',          // accent the recognizer listens for
+  micDevice: 'builtin',     // 'builtin' avoids bluetooth headset mics; 'default' uses the system's
   stt: 'whisper',           // 'whisper' (local, better on accents) or 'apple'
   whisperModel: 'base',     // measured by scripts/measure-whisper.sh
   whisperTimeoutMs: 3000,   // after this, the system recognizer's text is used

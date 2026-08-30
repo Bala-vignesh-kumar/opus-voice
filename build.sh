@@ -20,8 +20,10 @@ swiftc -O \
   swift/Utterance.swift \
   swift/TurnAssembler.swift \
   swift/UtteranceBuffer.swift \
+  swift/InputDevice.swift \
   -framework AVFoundation \
   -framework Speech \
+  -framework CoreAudio \
   -Xlinker -sectcreate \
   -Xlinker __TEXT \
   -Xlinker __info_plist \

@@ -388,6 +388,7 @@ voice.on('ready', (event) => {
     endpointMs: config.endpointMs,
     endpointFastMs: config.endpointFastMs,
     bargeInWords: config.bargeInWords,
+    micDevice: config.micDevice,
   });
   view.banner({
     voice: event.voice,

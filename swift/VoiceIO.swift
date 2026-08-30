@@ -235,6 +235,7 @@ final class VoiceIO: NSObject {
     private var bargeInWords = 2
     private var onDevice = true
     private var localeId = "en-US"
+    private var preferBuiltInMic = true
 
     // Turn state.
     private var listening = true
@@ -305,6 +306,7 @@ final class VoiceIO: NSObject {
 
     private func setupAudio() throws {
         let input = engine.inputNode
+        selectInputDevice(input)
         // Acoustic echo cancellation. Best-effort: some aggregate/virtual devices
         // refuse it, in which case barge-in gets noisier but still works via the
         // self-echo filter in handleTranscript.
@@ -333,6 +335,39 @@ final class VoiceIO: NSObject {
         try startInput()
 
         if voice == nil { voice = Self.resolveVoice(nil) }
+    }
+
+    /// Picks the microphone before the engine starts.
+    ///
+    /// Opening the mic while AirPods are connected switches them out of A2DP
+    /// into hands-free mode, which gives you a microphone at the price of
+    /// telephone-quality audio in both directions. A captured turn had only
+    /// 3.6% of its energy above 6kHz, and both recognizers produced nonsense
+    /// from it — they were fine, they were being handed a phone call.
+    ///
+    /// So the built-in microphone wins by default, and the headphones are left
+    /// to do the thing they are good at. `micDevice: "default"` restores the
+    /// system's own choice for anyone who wants to be heard across a room.
+    private func selectInputDevice(_ input: AVAudioInputNode) {
+        guard preferBuiltInMic else { return }
+        guard let current = InputDevice.systemDefault() else { return }
+        // Only override a Bluetooth default. Any other device the user chose
+        // deliberately — an interface, a USB mic — is left where they put it.
+        guard InputDevice.isBluetooth(current) else { return }
+        guard let builtIn = InputDevice.builtIn() else { return }
+
+        var device = builtIn
+        let status = AudioUnitSetProperty(
+            input.audioUnit!,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &device,
+            UInt32(MemoryLayout<AudioDeviceID>.size))
+        if status == noErr {
+            emit(["type": "warn", "message":
+                "using \(InputDevice.name(builtIn)) — \(InputDevice.name(current)) is a bluetooth headset, whose microphone is narrowband. Set \"micDevice\": \"default\" to use it anyway."])
+        }
     }
 
     /// Taps the microphone and runs the engine. Separate from `setupAudio` so
@@ -572,8 +607,13 @@ final class VoiceIO: NSObject {
         guard isSpeech(trimmed) else { return }
 
         var shouldBargeIn = false
+        var startingTurn = false
         state.sync {
             guard trimmed != partial else { return }
+            // First words of a turn. Everything buffered before now is whatever
+            // the room was doing while nobody was talking to it, and handing
+            // that to the second recognizer means it transcribes the room.
+            startingTurn = partial.isEmpty
             // Second line of defence behind echo cancellation: if everything we
             // "heard" is already inside what we are currently saying, it's our
             // own voice leaking back in.
@@ -585,6 +625,9 @@ final class VoiceIO: NSObject {
             }
         }
         guard !partial.isEmpty else { return }
+        // A little is kept, not none: speech begins before the recognizer
+        // notices it, and cutting at exactly this instant loses the first word.
+        if startingTurn { utterance.trimToLast(seconds: 1.5) }
         emit(["type": "partial", "text": trimmed])
         if shouldBargeIn {
             emit(["type": "bargein"])
@@ -917,6 +960,7 @@ final class VoiceIO: NSObject {
     }
 
     private func configure(_ command: [String: Any]) {
+        if let mic = command["micDevice"] as? String { preferBuiltInMic = mic != "default" }
         if let name = command["voice"] as? String, let resolved = Self.resolveVoice(name) {
             voice = resolved
             emit(["type": "voice", "name": resolved.name, "voiceId": resolved.identifier])

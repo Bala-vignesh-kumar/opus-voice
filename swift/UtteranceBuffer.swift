@@ -55,6 +55,24 @@ final class UtteranceBuffer {
     return out
   }
 
+  /// Drops everything but the most recent `seconds`.
+  ///
+  /// Called when the recognizer first reports words, so the buffer holds the
+  /// utterance rather than everything since the last turn. Continuous listening
+  /// otherwise handed the second recognizer half a minute of room noise with a
+  /// sentence buried in it, and it transcribed the noise too.
+  ///
+  /// The tail is kept rather than the head because speech begins slightly
+  /// before the recognizer notices it; this is the pre-roll that keeps the
+  /// first word.
+  func trimToLast(seconds: Double) {
+    lock.lock(); defer { lock.unlock() }
+    let keep = Int(sampleRate * seconds)
+    if samples.count > keep {
+      samples.removeFirst(samples.count - keep)
+    }
+  }
+
   func reset() {
     lock.lock(); defer { lock.unlock() }
     samples = []
