@@ -41,7 +41,7 @@ const ui = new Ui();
 // printed and forgotten.
 const conversation = new Conversation();
 const view = makeView(ui, conversation);
-const voice = new VoiceIO({ locale: config.locale });
+const voice = new VoiceIO({ locale: config.locale, echoCancellation: config.echoCancellation });
 const claude = new ClaudeSession({
   model: config.model,
   effort: config.effort,

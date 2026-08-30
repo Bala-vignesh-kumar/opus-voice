@@ -18,11 +18,11 @@ const BINARY = process.env.OPUS_VOICE_IO_BIN || path.resolve(
  * 'warn', 'error', 'exit'.
  */
 export class VoiceIO extends EventEmitter {
-  constructor({ locale = 'en-US' } = {}) {
+  constructor({ locale = 'en-US', echoCancellation = false } = {}) {
     super();
     this.speaking = false;
 
-    this.child = spawn(BINARY, ['--locale', locale], { stdio: ['pipe', 'pipe', 'inherit'] });
+    this.child = spawn(BINARY, ['--locale', locale, ...(echoCancellation ? ['--echo-cancellation'] : [])], { stdio: ['pipe', 'pipe', 'inherit'] });
     this.child.on('error', (err) => this.emit('error', err));
     this.child.on('exit', (code) => this.emit('exit', code));
 

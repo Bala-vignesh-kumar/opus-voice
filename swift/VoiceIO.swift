@@ -242,6 +242,7 @@ final class VoiceIO: NSObject {
     private var onDevice = true
     private var localeId = "en-US"
     private var preferBuiltInMic = true
+    private var echoCancellation = false
     private var tracing = false
 
     // Turn state.
@@ -267,6 +268,12 @@ final class VoiceIO: NSObject {
     /// Must be called before `start()`; the recognizer is built once at setup.
     func setLocale(_ identifier: String) {
         localeId = identifier
+    }
+
+    /// Must be called before `start()`, for the same reason as setLocale: the
+    /// audio graph is built there, before the orchestrator has said anything.
+    func setEchoCancellation(_ on: Bool) {
+        echoCancellation = on
     }
 
     func start() {
@@ -317,10 +324,24 @@ final class VoiceIO: NSObject {
         // Acoustic echo cancellation. Best-effort: some aggregate/virtual devices
         // refuse it, in which case barge-in gets noisier but still works via the
         // self-echo filter in handleTranscript.
-        do {
-            try input.setVoiceProcessingEnabled(true)
-        } catch {
-            emit(["type": "warn", "message": "echo cancellation unavailable: \(error.localizedDescription)"])
+        //
+        // It is off by default now. The voice processing unit is tuned for
+        // telephony intelligibility, not for recognition: the noise suppressor
+        // takes consonants with it and the gain control pumps. Dictation does
+        // none of this, which is why Dictation was noticeably clearer than this
+        // app on the same microphone with the same model.
+        //
+        // What it buys is echo cancellation, and that only matters when the
+        // answer is played out of a speaker the microphone can hear. On
+        // headphones there is no acoustic path back, so it is paid for nothing.
+        // Turn it on with "echoCancellation": true if you use the laptop
+        // speakers, where without it the app hears itself and interrupts.
+        if echoCancellation {
+            do {
+                try input.setVoiceProcessingEnabled(true)
+            } catch {
+                emit(["type": "warn", "message": "echo cancellation unavailable: \(error.localizedDescription)"])
+            }
         }
 
         let hardware = engine.outputNode.outputFormat(forBus: 0)
@@ -1094,6 +1115,7 @@ struct VoiceIOMain {
      index + 1 < CommandLine.arguments.count {
       io.setLocale(CommandLine.arguments[index + 1])
   }
+  io.setEchoCancellation(CommandLine.arguments.contains("--echo-cancellation"))
   io.start()
 
   DispatchQueue.global(qos: .userInitiated).async {
