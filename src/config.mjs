@@ -18,6 +18,7 @@ export const DEFAULTS = {
   whisperModel: 'base',     // measured by scripts/measure-whisper.sh
   whisperTimeoutMs: 3000,   // after this, the system recognizer's text is used
   vocabulary: [],           // names the recognizer will not know: products, repos, people
+  dumpAudio: '',            // debug: write each turn's audio to <prefix>-N.wav
   tts: 'piper',             // 'piper' (local neural) or 'apple' (system voice)
   piperVoice: 'en_US-hfc_female-medium',
   voice: '',                // Apple voice name; empty = best installed English

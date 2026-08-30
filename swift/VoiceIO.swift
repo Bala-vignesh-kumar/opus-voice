@@ -656,7 +656,7 @@ final class VoiceIO: NSObject {
             // The recognizer punctuates as it goes, so a trailing full stop is a
             // strong signal the thought is finished — take the turn sooner. Without
             // one, wait longer rather than cutting off someone mid-sentence.
-            let complete = self.partial.hasSuffix(".") || self.partial.hasSuffix("?") || self.partial.hasSuffix("!")
+            let complete = isCompleteThought(self.partial)
             let threshold = complete ? self.endpointFastMs : self.endpointMs
             guard Date().timeIntervalSince(self.lastChange) * 1000 > threshold else { return }
             let text = self.partial

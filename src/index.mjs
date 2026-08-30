@@ -455,13 +455,20 @@ voice.on('utterance', (event) => {
   // OPUS_VOICE_DUMP_AUDIO=/tmp/dump writes each turn's audio as a wav, so what
   // the second recognizer was actually handed can be listened to rather than
   // reasoned about.
-  if (process.env.OPUS_VOICE_DUMP_AUDIO) dumpUtterance(event);
+  // Config as well as env, because the bundled app is launched by macOS and
+  // never sees a shell environment.
+  if (config.dumpAudio || process.env.OPUS_VOICE_DUMP_AUDIO) dumpUtterance(event);
 });
 
 /** Writes one turn's audio to <prefix>-N.wav. Debug only. */
 let dumpCount = 0;
 function dumpUtterance(event) {
-  const samples = new Float32Array(Buffer.from(event.pcm, 'base64').buffer.slice(0));
+  // Buffer.from() allocates out of a shared pool, so .buffer is the whole pool
+  // and slicing from zero reads somebody else's bytes. The offset and length
+  // are not optional here — without them this wrote silence and I nearly
+  // diagnosed a live bug from it.
+  const raw = Buffer.from(event.pcm, 'base64');
+  const samples = new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.length));
   const rate = event.sampleRate || 16000;
   const pcm16 = Buffer.alloc(samples.length * 2);
   for (let i = 0; i < samples.length; i += 1) {
@@ -473,7 +480,8 @@ function dumpUtterance(event) {
   header.writeUInt16LE(1, 22); header.writeUInt32LE(rate, 24);
   header.writeUInt32LE(rate * 2, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
   header.write('data', 36); header.writeUInt32LE(pcm16.length, 40);
-  const file = `${process.env.OPUS_VOICE_DUMP_AUDIO}-${++dumpCount}.wav`;
+  const prefix = config.dumpAudio || process.env.OPUS_VOICE_DUMP_AUDIO;
+  const file = `${prefix}-${++dumpCount}.wav`;
   fs.writeFileSync(file, Buffer.concat([header, pcm16]));
   view.note(`audio dumped to ${file} (${(samples.length / rate).toFixed(1)}s, peak ${event.peak?.toFixed(3)})`);
 }
