@@ -16,13 +16,27 @@ carries the rules.
 Five processes. Knowing which one owns what saves an hour:
 
 ```
-Falcon.app (swift/FalconApp.swift)   menu bar, window, headphone gesture
+Falcon.app (bin/falcon)                     dock icon, menus, window, squeeze
   └── node src/index.mjs                    the orchestrator — all the policy
         ├── bin/voiceio (Swift)             microphone, recognizer, playback
         ├── claude (the CLI)                one long-lived streaming session
         ├── scripts/piper_server.py         text to speech
         └── scripts/whisper_server.py       second-opinion transcription
+
+bin/falcon-window                           the window alone, for `npm run app`
 ```
+
+The app is six small files rather than one large one. `FalconApp.swift`
+coordinates and supervises; `StatusItem.swift` is the menu bar item,
+`MainMenu.swift` the menu along the top, `FalconWindow.swift` the window (built
+into *both* binaries, so there is one of it), `SessionClient.swift` the event
+stream and command POSTs, `AppLaunch.swift` the launch decisions that are pure
+enough to test.
+
+Closing the window hides it; the session keeps listening. Quit is cmd-Q. A
+headphone squeeze wakes the session *and* summons the window; the Siri Shortcut
+wakes it and summons nothing, because you say that phrase when you are not at
+the screen.
 
 `src/index.mjs` is the only place that decides anything. Everything else is a
 device driver. If you are adding behaviour, it almost certainly belongs there.
