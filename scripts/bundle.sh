@@ -29,6 +29,29 @@ if [ ! -x bin/falcon ]; then
 fi
 [ -x bin/falcon ] || { printf '%s✗%s bin/falcon did not build\n' "$amber" "$reset"; exit 1; }
 
+# Quit a running copy before deleting the bundle out from under it.
+#
+# `rm -rf` on the bundle of a live process leaves it running against an app
+# directory that no longer exists, and its identity goes with it: macOS routes
+# AVRCP media commands by bundle identity, so the headphone squeeze silently
+# stops arriving. The app looks fine, the watcher says it is listening, and no
+# squeeze is ever delivered — which is the same invisible failure EchoPolicy.swift
+# exists to prevent, arriving by a different road.
+if pgrep -f "$APP/Contents/MacOS/Falcon" >/dev/null 2>&1; then
+  printf '%squitting the running Falcon first…%s\n' "$dim" "$reset"
+  osascript -e 'tell application "Falcon" to quit' >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    pgrep -f "$APP/Contents/MacOS/Falcon" >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+  # Still there: say so rather than replacing the bundle underneath it.
+  if pgrep -f "$APP/Contents/MacOS/Falcon" >/dev/null 2>&1; then
+    printf '%s✗%s Falcon is still running — quit it and run this again\n' "$amber" "$reset"
+    printf '  replacing the bundle under a live process breaks the headphone squeeze\n'
+    exit 1
+  fi
+fi
+
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp bin/falcon "$APP/Contents/MacOS/Falcon"

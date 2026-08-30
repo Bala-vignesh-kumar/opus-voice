@@ -126,6 +126,12 @@ all. Nothing reaches macOS and nothing can reach this app. The squeeze does not
 fail; it never happens, and every log on our side stays silent, which reads
 exactly like the app being broken.
 
+**A second way to break it, with identical symptoms:** replacing
+`/Applications/Falcon.app` while it is running. macOS routes AVRCP commands by
+bundle identity, so `rm -rf` on the bundle of a live process leaves it running
+with no identity to route to — armed, listening, and unreachable. `bundle.sh`
+now quits a running copy first rather than clobbering it.
+
 **What puts it in SCO:** any duplex audio path — an audio unit that takes the
 microphone as well as the speaker. `setVoiceProcessingEnabled(true)`, i.e.
 `"echoCancellation": true`, is one. An `AVAudioEngine`-based keepalive is
