@@ -27,16 +27,29 @@ func runTurnAssemblerTests() -> Int {
   a.add("and the tests", isFinal: true)
   expect(a.running, "and the tests", "the next turn is not polluted by the last")
 
-  // THE RACE. Finalizing is asynchronous. Somebody who keeps talking has words
-  // finalized while the barrier is in flight, and a baseline computed on
-  // completion swallows them — which is how "hello can you hear me" reached
-  // Claude as ".".
+  // THE RACE. Finalizing is asynchronous, so somebody who keeps talking has
+  // words arriving while the barrier is in flight. They arrive volatile first —
+  // finalizing is what the barrier is waiting on — and volatile text is kept
+  // precisely so those words are not swallowed.
   var b = TurnAssembler()
   b.add("first turn", isFinal: true)
   b.beginBarrier()
-  b.add("second turn", isFinal: true)   // spoken during the await
+  b.add("second turn", isFinal: false)   // spoken during the await
   b.endBarrier()
   expect(b.running, "second turn", "speech during the barrier survives it")
+
+  // THE DEBRIS. Finalizing can revise the turn longer than it was when the
+  // barrier was asked for — punctuation added, a word corrected. A baseline
+  // stepped forward by a remembered count then stops short, and the tail of the
+  // finished turn wears the next one: ",.., check in the code."
+  var e = TurnAssembler()
+  e.add("check", isFinal: false)
+  e.beginBarrier()
+  e.add("check in the code.", isFinal: true)   // longer than the mark
+  e.endBarrier()
+  expect(e.running, "", "a turn revised longer still leaves nothing behind")
+  e.add("and the tests", isFinal: true)
+  expect(e.running, "and the tests", "so the next turn starts clean")
 
   // Volatile text in flight at the barrier belongs to the turn being ended.
   var c = TurnAssembler()

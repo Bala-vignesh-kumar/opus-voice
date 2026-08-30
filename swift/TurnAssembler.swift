@@ -45,13 +45,23 @@ struct TurnAssembler {
     pending = finalized.count + volatileText.count
   }
 
-  /// Moves the baseline past exactly the turn that was ended.
+  /// Ends the turn by clearing it, rather than stepping a baseline past it.
   ///
-  /// Clamped to what actually exists, because finalizing may revise the
-  /// promoted text shorter than the volatile text it replaced.
+  /// The baseline was clamped so it could not overrun, which meant that when
+  /// finalizing revised the text *longer* than it was when the mark was taken —
+  /// punctuation added, a word corrected — the baseline stopped short and the
+  /// tail of the finished turn survived into the next one. It showed up as
+  /// turns beginning ",.., " and "in... ": a few unconsumed characters wearing
+  /// the next sentence.
+  ///
+  /// Clearing cannot leave a remainder, because there is no arithmetic to get
+  /// wrong. Volatile text is deliberately kept: it has not been finalized, so
+  /// it is words arriving now rather than the turn just ended — which is what
+  /// stops this reintroducing the race where speech during the barrier was
+  /// swallowed.
   mutating func endBarrier() {
-    base = min(finalized.count, pending ?? base)
-    volatileText = ""
+    finalized = ""
+    base = 0
     pending = nil
   }
 
