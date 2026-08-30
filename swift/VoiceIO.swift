@@ -243,6 +243,8 @@ final class VoiceIO: NSObject {
     private var localeId = "en-US"
     private var preferBuiltInMic = true
     private var echoCancellation = false
+    /// What the system input was before this app changed it.
+    private var restoreInputTo: AudioDeviceID?
     private var tracing = false
 
     // Turn state.
@@ -344,8 +346,20 @@ final class VoiceIO: NSObject {
             }
         }
 
-        let hardware = engine.outputNode.outputFormat(forBus: 0)
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: hardware.sampleRate, channels: 1) else {
+        // Enabling voice processing used to initialise the IO unit as a side
+        // effect, and this format was only ever valid because of it. With it
+        // off, the output node can report a zeroed format until something
+        // forces the graph to configure — and connecting with that throws
+        // "required condition is false: IsFormatSampleRateAndChannelCountValid".
+        var hardware = engine.outputNode.outputFormat(forBus: 0)
+        if hardware.sampleRate <= 0 || hardware.channelCount == 0 {
+            let fallback = engine.outputNode.inputFormat(forBus: 0)
+            hardware = (fallback.sampleRate > 0 && fallback.channelCount > 0)
+                ? fallback
+                : (AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2) ?? hardware)
+        }
+        guard hardware.sampleRate > 0, hardware.channelCount > 0,
+              let format = AVAudioFormat(standardFormatWithSampleRate: hardware.sampleRate, channels: 1) else {
             throw NSError(domain: "voiceio", code: 1, userInfo: [NSLocalizedDescriptionKey: "no usable output format"])
         }
         playFormat = format
@@ -384,18 +398,23 @@ final class VoiceIO: NSObject {
         guard InputDevice.isBluetooth(current) else { return }
         guard let builtIn = InputDevice.builtIn() else { return }
 
-        var device = builtIn
-        let status = AudioUnitSetProperty(
-            input.audioUnit!,
-            kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global,
-            0,
-            &device,
-            UInt32(MemoryLayout<AudioDeviceID>.size))
-        if status == noErr {
-            emit(["type": "warn", "message":
-                "using \(InputDevice.name(builtIn)) — \(InputDevice.name(current)) is a bluetooth headset, whose microphone is narrowband. Set \"micDevice\": \"default\" to use it anyway."])
-        }
+        // The system default, not this engine's input node.
+        //
+        // Pointing the node at a different device than the output throws
+        // -10875 unless the voice processing unit is doing the routing — and
+        // that unit is exactly what was costing the clarity. Changing the
+        // system default gets the good microphone without it.
+        guard InputDevice.setSystemDefault(builtIn) else { return }
+        restoreInputTo = current
+        emit(["type": "warn", "message":
+            "switched the microphone to \(InputDevice.name(builtIn)) — \(InputDevice.name(current)) is a bluetooth headset and its microphone is narrowband. It goes back when opus voice quits. Set \"micDevice\": \"default\" to leave it alone."])
+    }
+
+    /// Puts the system microphone back where it was found.
+    func restoreInputDevice() {
+        guard let device = restoreInputTo else { return }
+        restoreInputTo = nil
+        InputDevice.setSystemDefault(device)
     }
 
     /// Taps the microphone and runs the engine. Separate from `setupAudio` so
@@ -1038,6 +1057,7 @@ final class VoiceIO: NSObject {
         case "voices":
             emit(["type": "voices", "voices": Self.voiceCatalog()])
         case "quit":
+            restoreInputDevice()
             engine.stop()
             exit(0)
         default:
@@ -1104,6 +1124,9 @@ final class VoiceIO: NSObject {
 
 // @main rather than top-level code: this file is compiled alongside
 // Utterance.swift now, and only main.swift may carry statements at file scope.
+/// Held for the process lifetime; a released DispatchSource stops firing.
+var signalSources: [DispatchSourceSignal] = []
+
 @main
 struct VoiceIOMain {
   static func main() {
@@ -1116,6 +1139,21 @@ struct VoiceIOMain {
       io.setLocale(CommandLine.arguments[index + 1])
   }
   io.setEchoCancellation(CommandLine.arguments.contains("--echo-cancellation"))
+
+  // Every way out, not just the polite one. This process is normally ended by
+  // its parent terminating it, and leaving somebody's microphone switched to a
+  // device they did not choose is not an acceptable way to exit.
+  for sig in [SIGTERM, SIGINT, SIGHUP] {
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    source.setEventHandler {
+      io.restoreInputDevice()
+      exit(0)
+    }
+    source.resume()
+    signalSources.append(source)
+  }
+
   io.start()
 
   DispatchQueue.global(qos: .userInitiated).async {
@@ -1127,6 +1165,7 @@ struct VoiceIOMain {
           DispatchQueue.main.async { io.handle(obj) }
       }
       // stdin closed — the orchestrator is gone.
+      io.restoreInputDevice()
       exit(0)
   }
 

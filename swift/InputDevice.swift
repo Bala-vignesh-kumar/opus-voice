@@ -59,6 +59,24 @@ enum InputDevice {
     return status == noErr && device != 0 ? device : nil
   }
 
+  /// Makes `device` the system's input. Returns whether it took.
+  ///
+  /// System-wide rather than per-app on purpose: routing this app's engine to a
+  /// different device than the output throws -10875 unless the voice processing
+  /// unit is doing the routing, and that unit is what was costing the clarity.
+  /// Changing the system default sidesteps both.
+  @discardableResult
+  static func setSystemDefault(_ device: AudioDeviceID) -> Bool {
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDefaultInputDevice,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain)
+    var value = device
+    return AudioObjectSetPropertyData(
+      AudioObjectID(kAudioObjectSystemObject), &address, 0, nil,
+      UInt32(MemoryLayout<AudioDeviceID>.size), &value) == noErr
+  }
+
   // MARK: internals
 
   private static func all() -> [AudioDeviceID] {
