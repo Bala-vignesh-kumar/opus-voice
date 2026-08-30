@@ -68,12 +68,28 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     let config = launch.repoRoot.appendingPathComponent("config.json")
     let watcher = RemoteCommandWatcher(
       gesture: WakeGesture.named(stringSetting("wakeGesture", inConfigAt: config)),
-      forwardToPlayer: boolSetting("forwardMediaKeys", inConfigAt: config, default: true)
+      forwardToPlayer: boolSetting("forwardMediaKeys", inConfigAt: config, default: true),
+      onWake: { [weak self] in self?.wokenByGesture() }
     ) { [weak self] message in
       self?.appendToLog(message)
     }
     headphones = watcher
     watcher.start()
+  }
+
+  /// What a squeeze means. The watcher recognises the gesture; this decides.
+  private func wokenByGesture() {
+    pokeWakeFile()
+    appendToLog("woke by headphone squeeze")
+  }
+
+  /// Touching the file node's Trigger watches. The same door the Siri Shortcut
+  /// comes through, so there is one way in and one thing to get right.
+  private func pokeWakeFile() {
+    let file = FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent(".falcon/wake")
+    let stamp = "\(Date().timeIntervalSince1970)\n"
+    try? stamp.write(to: file, atomically: true, encoding: .utf8)
   }
   // MARK: state
 

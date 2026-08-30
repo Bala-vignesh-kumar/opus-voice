@@ -26,34 +26,54 @@ enum WakeGesture: String {
   }
 }
 
+/// The gesture an AVRCP command represents, or nil if it is one we listen for
+/// but do not bind.
+///
+/// Kept as a mapping rather than a switch inside the handler so it can be
+/// tested: everything else in this file needs a Bluetooth stack and the Now
+/// Playing role to exercise at all.
+func gesture(forCommand name: String) -> WakeGesture? {
+  switch name {
+  case "toggle", "play", "pause": return .playPause
+  case "next": return .next
+  case "previous": return .previous
+  default: return nil
+  }
+}
+
 final class RemoteCommandWatcher {
-  private let gesture: WakeGesture
+  /// The gesture this watcher answers to. Named apart from the free function
+  /// above so the two do not shadow each other inside the class.
+  private let boundGesture: WakeGesture
   private let forwardToPlayer: Bool
+  /// What a squeeze means. This class recognises the gesture and nothing more —
+  /// deciding what to do about it belongs to whoever is listening, which is
+  /// also what makes the recognition above testable.
+  private let onWake: () -> Void
   private let onLog: (String) -> Void
   private var claimed = false
 
-  private var wakeFile: URL {
-    FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".falcon/wake")
-  }
-
-  init(gesture: WakeGesture, forwardToPlayer: Bool, onLog: @escaping (String) -> Void) {
-    self.gesture = gesture
+  init(gesture: WakeGesture,
+       forwardToPlayer: Bool,
+       onWake: @escaping () -> Void,
+       onLog: @escaping (String) -> Void) {
+    self.boundGesture = gesture
     self.forwardToPlayer = forwardToPlayer
+    self.onWake = onWake
     self.onLog = onLog
   }
 
   func start() {
     let center = MPRemoteCommandCenter.shared()
 
-    register(center.togglePlayPauseCommand, as: .playPause, named: "toggle")
-    register(center.playCommand, as: .playPause, named: "play")
-    register(center.pauseCommand, as: .playPause, named: "pause")
-    register(center.nextTrackCommand, as: .next, named: "next")
-    register(center.previousTrackCommand, as: .previous, named: "previous")
+    register(center.togglePlayPauseCommand, named: "toggle")
+    register(center.playCommand, named: "play")
+    register(center.pauseCommand, named: "pause")
+    register(center.nextTrackCommand, named: "next")
+    register(center.previousTrackCommand, named: "previous")
 
     claim()
-    onLog("headphone wake: listening for \(gesture.rawValue)")
+    onLog("headphone wake: listening for \(boundGesture.rawValue)")
   }
 
   func stop() {
@@ -72,15 +92,15 @@ final class RemoteCommandWatcher {
     claimed = false
   }
 
-  private func register(_ command: MPRemoteCommand, as gesture: WakeGesture, named: String) {
+  private func register(_ command: MPRemoteCommand, named: String) {
     command.isEnabled = true
     command.addTarget { [weak self] _ in
       guard let self else { return .commandFailed }
       // Every command is logged, not just the bound one, because which squeeze
       // sends which command differs by model and by the settings in Bluetooth.
       self.onLog("headphone command: \(named)")
-      if gesture == self.gesture {
-        self.poke()
+      if gesture(forCommand: named) == self.boundGesture {
+        self.onWake()
       }
       if self.forwardToPlayer {
         self.forward(named)
@@ -118,11 +138,5 @@ final class RemoteCommandWatcher {
       apple.executeAndReturnError(&error)
       if error == nil { return }
     }
-  }
-
-  private func poke() {
-    let stamp = "\(Date().timeIntervalSince1970)\n"
-    try? stamp.write(to: wakeFile, atomically: true, encoding: .utf8)
-    onLog("woke by headphone squeeze")
   }
 }

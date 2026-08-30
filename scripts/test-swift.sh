@@ -19,5 +19,6 @@ swiftc -o "$out" \
   swift/TurnAssembler.swift swift/TurnAssemblerTests.swift \
   swift/UtteranceBuffer.swift swift/UtteranceBufferTests.swift \
   swift/AppLaunch.swift swift/AppLaunchTests.swift \
+  swift/RemoteCommands.swift swift/RemoteCommandsTests.swift \
   swift/TestMain.swift
 "$out"
