@@ -996,10 +996,20 @@ final class VoiceIO: NSObject {
         //
         // Audio and text both. They are two halves of the same turn and there
         // is no reason for either to remember what the app itself just said.
-        utterance.reset()
-        state.sync {
-            turn = TurnAssembler()
-            partial = ""
+        // Only when the answer finished on its own.
+        //
+        // Playback also ends because somebody talked over it, and at that
+        // instant they are mid-sentence — the barge-in fired on the first two
+        // words. Clearing here threw those words away and left the tail of the
+        // sentence to become the turn: "Check Nakshathra residency in the
+        // course" arrived as "Checkra" and then "over..". Barge-in exists to
+        // listen to the person talking, so it must not discard what they said.
+        if !interrupted {
+            utterance.reset()
+            state.sync {
+                turn = TurnAssembler()
+                partial = ""
+            }
         }
         emit(["type": "speech_end", "interrupted": interrupted])
         drain()
@@ -1014,7 +1024,10 @@ final class VoiceIO: NSObject {
             guard speaking else { return }
             speaking = false
             spokenLower = ""
-            partial = ""
+            // partial is deliberately kept. Barge-in is triggered by the first
+            // two words somebody says over the answer, so clearing here throws
+            // away the beginning of the very sentence that caused it and leaves
+            // the tail to stand in for the whole turn.
             lastChange = Date()
         }
         synth.stopSpeaking(at: .immediate)
