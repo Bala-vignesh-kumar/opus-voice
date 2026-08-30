@@ -120,6 +120,12 @@ final class TranscriberEngine {
         }
     }
 
+    /// Ends the stream, so the results task finishes and the analyzer stops.
+    /// Called when a replacement is being stood up in its place.
+    func close() {
+        continuation.finish()
+    }
+
     /// Resamples a mic buffer into the analyzer's format and hands it over.
     func feed(_ buffer: AVAudioPCMBuffer) {
         guard let converted = resample(buffer) else { return }
@@ -720,12 +726,50 @@ final class VoiceIO: NSObject {
             return
         }
         if usingTranscriber {
-            // The analyzer survived standby; it simply stopped being fed.
-            state.sync { partial = "" }
+            // It does not survive standby, whatever the previous comment here
+            // claimed. Ending a turn calls analyzer.finalize, and an analyzer
+            // that has been finalized and then starved of input while the
+            // engine was stopped never produces another result — the first
+            // wake after launch transcribed fine and every wake after a sleep
+            // was silent, which is indistinguishable from a dead microphone.
+            restartTranscriber()
         } else {
             restartRecognition()
         }
         emit(["type": "standby", "on": false])
+    }
+
+    /// Stands up a fresh analyzer, replacing whatever came back from standby.
+    ///
+    /// Costs the setup time once per wake, which is paid while the microphone
+    /// is opening anyway and nobody has started talking yet.
+    private func restartTranscriber() {
+        guard #available(macOS 26.0, *) else { return }
+        let locale = Locale(identifier: localeId)
+        let previous = transcriber as? TranscriberEngine
+        Task {
+            do {
+                let engine = try await TranscriberEngine(locale: locale)
+                engine.onResult = { [weak self] text, isFinal in
+                    self?.handleTranscriberResult(text, isFinal: isFinal)
+                }
+                DispatchQueue.main.async {
+                    previous?.close()
+                    self.transcriber = engine
+                    self.state.sync {
+                        self.turn = TurnAssembler()
+                        self.partial = ""
+                    }
+                }
+            } catch {
+                // Say it rather than going quiet: a recognizer that fails to
+                // come back looks exactly like a microphone that is not working.
+                emit([
+                    "type": "warn",
+                    "message": "recognition did not restart: \(error.localizedDescription)",
+                ])
+            }
+        }
     }
 
     func speak(_ text: String) {
