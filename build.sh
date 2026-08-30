@@ -66,6 +66,8 @@ if swiftc -O \
   swift/Environment.swift \
   swift/RemoteCommands.swift \
   swift/Orchestrator.swift \
+  swift/SessionClient.swift \
+  swift/StatusItem.swift \
   swift/FalconWindow.swift \
   swift/FalconApp.swift \
   -framework AppKit \
