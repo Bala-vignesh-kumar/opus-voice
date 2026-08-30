@@ -21,6 +21,7 @@ swiftc -O \
   swift/TurnAssembler.swift \
   swift/UtteranceBuffer.swift \
   swift/InputDevice.swift \
+  swift/Keepalive.swift \
   -framework AVFoundation \
   -framework Speech \
   -framework CoreAudio \

@@ -41,12 +41,17 @@ const ui = new Ui();
 // printed and forgotten.
 const conversation = new Conversation();
 const view = makeView(ui, conversation);
-const voice = new VoiceIO({ locale: config.locale, echoCancellation: config.echoCancellation });
+const voice = new VoiceIO({
+  locale: config.locale,
+  echoCancellation: config.echoCancellation,
+  micDevice: config.micDevice,
+});
 const claude = new ClaudeSession({
   model: config.model,
   effort: config.effort,
   cwd: workdir,
   permissionMode: config.permissionMode,
+  bin: config.claudeBin || process.env.OPUS_VOICE_CLAUDE_BIN,
 });
 const speaker = new Speaker(voice, {
   engine: config.tts,
@@ -540,7 +545,24 @@ voice.on('error', (err) => {
   if (err.fatal) shutdown(1);
 });
 
-voice.on('exit', () => shutdown(1));
+// Losing the audio daemon used to end the app, which meant that unplugging
+// headphones — the device goes, the daemon goes with it — killed an assistant
+// that was otherwise perfectly able to keep working. It is replaced instead.
+// Three deaths in a minute is a real fault rather than a route change, and that
+// still stops, because respawning into a broken device forever is worse.
+let voiceRestarts = [];
+voice.on('exit', () => {
+  const now = Date.now();
+  voiceRestarts = voiceRestarts.filter((at) => now - at < 60_000);
+  voiceRestarts.push(now);
+  if (voiceRestarts.length > 3) {
+    view.error('the audio daemon keeps dying — stopping');
+    shutdown(1);
+    return;
+  }
+  view.warn('audio device changed — restarting the microphone');
+  voice.restart();
+});
 
 // MARK: model events
 

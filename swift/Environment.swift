@@ -103,3 +103,18 @@ func boolSetting(_ key: String, inConfigAt file: URL, default fallback: Bool) ->
   else { return fallback }
   return value
 }
+
+/// Whether an open window is pointed at a session that is no longer the one
+/// running.
+///
+/// The url carries the token that authorises every request the page makes, and
+/// node mints a fresh one each time it starts. A window that outlives a restart
+/// therefore holds a dead session: `/events` answers 403, and EventSource treats
+/// any non-200 as fatal and never retries, so the page freezes on whatever it
+/// last saw and the library comes back empty. Comparing the whole url covers the
+/// port moving too, which is just as stale as a new token.
+func shouldReloadWindow(loaded: URL?, current: URL?) -> Bool {
+  guard let current else { return false }   // nothing to point it at
+  guard let loaded else { return true }     // never loaded, so load it
+  return loaded != current
+}

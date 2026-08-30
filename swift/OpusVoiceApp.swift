@@ -13,6 +13,9 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   private var orchestrator: Orchestrator?
   private var launchProblem: LaunchProblem?
   private var window: NSWindow?
+  /// Held alongside the window so a restarted session can be reloaded into it.
+  private var web: WKWebView?
+  private var loadedURL: URL?
   private var stream: Task<Void, Never>?
   private var headphones: RemoteCommandWatcher?
 
@@ -83,6 +86,19 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     // The stream carries the token, so it can only start once there is a
     // session to read it from.
     if orchestrator?.sessionURL != nil { listen() }
+    // And the window holds the same token. Reconnecting the menu's stream while
+    // leaving the window on the old one is how an app ends up looking dead while
+    // working perfectly: the page keeps its last frame, its library 403s, and
+    // nothing on screen says why.
+    showSession()
+  }
+
+  /// Points an open window at the current session, if it is not there already.
+  private func showSession() {
+    guard let web, let url = orchestrator?.sessionURL ?? Self.sessionURLOnDisk() else { return }
+    guard shouldReloadWindow(loaded: loadedURL, current: url) else { return }
+    loadedURL = url
+    web.load(URLRequest(url: url))
   }
 
   private func render() {
@@ -218,6 +234,9 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       return
     }
     if let window {
+      // Reopened, not rebuilt — so this is also the moment to notice that the
+      // session it is showing died while it was closed.
+      showSession()
       window.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)
       return
@@ -244,6 +263,8 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     created.makeKeyAndOrderFront(nil)
     window = created
 
+    self.web = web
+    loadedURL = url
     web.load(URLRequest(url: url))
     NSApp.activate(ignoringOtherApps: true)
   }

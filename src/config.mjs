@@ -11,6 +11,7 @@ export const DEFAULTS = {
   effort: 'medium',
   dir: '',                  // project it works in; empty = where you launched it
   permissionMode: 'bypassPermissions',
+  claudeBin: '',            // path to the claude CLI; empty = PATH, then the usual install locations
   narrateTools: true,
   locale: 'en-IN',          // accent the recognizer listens for
   micDevice: 'builtin',     // 'builtin' avoids bluetooth headset mics; 'default' uses the system's
@@ -47,6 +48,10 @@ export const DEFAULTS = {
   spawnWindow: true,        // whether --ui also launches bin/voiceapp
   uiPort: 4477,             // loopback port for the window; steps up if taken
   sessionFile: '',          // where to publish the session; empty = ~/.opus-voice/session.json
+  // Where conversations are kept; empty = ~/.opus-voice/chats. Overridable for
+  // the same reason sessionFile is: a test run must not write into the record
+  // of the conversations somebody has actually had.
+  chatsDir: '',
 };
 
 export function loadConfig(argv = process.argv.slice(2)) {

@@ -226,6 +226,9 @@ final class VoiceIO: NSObject {
 
     /// The audio behind the current turn, for the second-opinion recognizer.
     private let utterance = UtteranceBuffer()
+    /// Silence held open so an AirPods squeeze has a stream to control. See
+    /// Keepalive.swift for why this exists at all.
+    private let keepalive = Keepalive()
 
     private var playFormat: AVAudioFormat!
     private var micFormat: AVAudioFormat!
@@ -274,6 +277,16 @@ final class VoiceIO: NSObject {
 
     /// Must be called before `start()`, for the same reason as setLocale: the
     /// audio graph is built there, before the orchestrator has said anything.
+    /// Whether to move the system input off a bluetooth headset.
+    ///
+    /// A launch argument rather than a `configure` key, because the device is
+    /// chosen during setup and `configure` does not arrive until after `ready`:
+    /// set from there, the preference was always read one step too late and the
+    /// microphone had already been switched.
+    func setPreferBuiltInMic(_ on: Bool) {
+        preferBuiltInMic = on
+    }
+
     func setEchoCancellation(_ on: Bool) {
         echoCancellation = on
     }
@@ -290,6 +303,9 @@ final class VoiceIO: NSObject {
             // Picking a recognizer can mean a model download, so `ready` waits
             // for it. Announcing before it resolves reports the wrong engine and
             // the wrong on-device state.
+            // After the engine, so it builds against the device already chosen.
+            self.keepalive.start()
+            self.watchRoute()
             self.setupRecognizer {
                 self.startEndpointTimer()
                 emit([
@@ -301,6 +317,20 @@ final class VoiceIO: NSObject {
                     "recognizer": self.recognizerName,
                 ])
             }
+        }
+    }
+
+    /// Rebuilds the silent stream when the audio route changes.
+    ///
+    /// Headphones connecting or disconnecting invalidates the player it was
+    /// started on, and a stream playing into a device that has gone is the same
+    /// as no stream: the squeeze stops working, silently.
+    private func watchRoute() {
+        NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.keepalive.restart()
         }
     }
 
@@ -1152,6 +1182,10 @@ struct VoiceIOMain {
       io.setLocale(CommandLine.arguments[index + 1])
   }
   io.setEchoCancellation(CommandLine.arguments.contains("--echo-cancellation"))
+  if let index = CommandLine.arguments.firstIndex(of: "--mic-device"),
+     index + 1 < CommandLine.arguments.count {
+      io.setPreferBuiltInMic(CommandLine.arguments[index + 1] != "default")
+  }
 
   // Every way out, not just the polite one. This process is normally ended by
   // its parent terminating it, and leaving somebody's microphone switched to a

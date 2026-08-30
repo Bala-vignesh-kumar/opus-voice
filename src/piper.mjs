@@ -30,17 +30,23 @@ export function available(name) {
  * 'error', 'exit'.
  */
 export class Piper extends EventEmitter {
-  constructor(voiceName) {
+  // Overridable so a test can drive a stub server, the same way Whisper does.
+  constructor(voiceName, { python = PYTHON, server = SERVER, voice = null, env = {} } = {}) {
     super();
     this.sampleRate = 22050;
 
-    const paths = findVoice(voiceName);
+    const paths = voice ?? findVoice(voiceName);
     if (!paths) throw new Error(`piper voice not installed: ${voiceName}`);
 
-    this.child = spawn(PYTHON, [SERVER, paths.model, paths.config], {
+    this.child = spawn(python, [server, paths.model, paths.config], {
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ...env },
     });
     this.child.on('error', (err) => this.emit('error', err));
+    // The pipe breaks the instant the child goes, and a socket with no error
+    // listener throws its error at the process rather than at us. That is how a
+    // dead voice took the whole app down from inside shutdown().
+    this.child.stdin.on('error', (err) => this.emit('error', err));
     this.child.on('exit', (code) => this.emit('exit', code));
     this.child.stderr.on('data', (data) => {
       const text = String(data).trim();
@@ -67,13 +73,29 @@ export class Piper extends EventEmitter {
     });
   }
 
+  /**
+   * Writes a line, unless the voice has already gone.
+   *
+   * Silent when it has: there is nothing useful to say about a synthesizer that
+   * exited, and the callers are a speech request and a shutdown, neither of
+   * which can do anything about it.
+   */
+  #send(message) {
+    if (this.child.exitCode !== null || this.child.signalCode !== null) return;
+    try {
+      this.child.stdin.write(`${JSON.stringify(message)}\n`);
+    } catch {
+      // Raced the child's exit. Same outcome as finding it already gone.
+    }
+  }
+
   /** Starts synthesizing; audio streams back tagged with `id`. */
   synthesize(id, text) {
-    this.child.stdin.write(`${JSON.stringify({ id, text })}\n`);
+    this.#send({ id, text });
   }
 
   close() {
-    this.child.stdin.write(`${JSON.stringify({ cmd: 'quit' })}\n`);
+    this.#send({ cmd: 'quit' });
     this.child.stdin.end();
     this.child.kill();
   }

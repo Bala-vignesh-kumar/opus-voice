@@ -12,6 +12,25 @@ func runEnvironmentTests() -> Int {
     }
   }
 
+  // MARK: reloading an open window
+
+  // The window is a web view holding one url, and that url carries the session
+  // token. node restarting mints a new one, so a window left open across a
+  // restart is pointed at a session that no longer exists: its event stream
+  // 403s, EventSource gives up for good, and the page sits there frozen with an
+  // empty library. Nothing recovers it, because nothing was watching.
+  let first = URL(string: "http://127.0.0.1:4477/?k=aaaa")!
+  let second = URL(string: "http://127.0.0.1:4477/?k=bbbb")!
+  check(shouldReloadWindow(loaded: first, current: second), "a new token reloads")
+  check(!shouldReloadWindow(loaded: first, current: first), "the same session does not reload")
+  check(shouldReloadWindow(loaded: nil, current: first), "a window with nothing loaded reloads")
+  check(!shouldReloadWindow(loaded: first, current: nil), "no session means nothing to reload to")
+
+  // The port moves when 4477 is taken, and that is just as stale as a new
+  // token — same token, different session.
+  let moved = URL(string: "http://127.0.0.1:4478/?k=aaaa")!
+  check(shouldReloadWindow(loaded: first, current: moved), "a new port reloads")
+
   let fm = FileManager.default
   let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
     .appendingPathComponent("opus-env-\(UUID().uuidString)")
