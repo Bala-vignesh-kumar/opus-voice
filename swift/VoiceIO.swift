@@ -242,6 +242,7 @@ final class VoiceIO: NSObject {
     private var onDevice = true
     private var localeId = "en-US"
     private var preferBuiltInMic = true
+    private var tracing = false
 
     // Turn state.
     private var listening = true
@@ -575,7 +576,7 @@ final class VoiceIO: NSObject {
             running = turn.running
             trace = "final=\(isFinal) text=\(text.debugDescription) running=\(running.debugDescription) barrier=\(suppressed)"
         }
-        if ProcessInfo.processInfo.environment["OPUS_VOICE_TRACE"] != nil {
+        if tracing || ProcessInfo.processInfo.environment["OPUS_VOICE_TRACE"] != nil {
             emit(["type": "warn", "message": "trace \(trace)"])
         }
         // Between taking a turn and the barrier landing, results still describe
@@ -945,15 +946,21 @@ final class VoiceIO: NSObject {
             report = true
         }
         guard report else { return }
-        // Start the next turn's audio here, not at the last turn boundary.
+        // Start the next turn here, not at the last turn boundary.
         //
-        // The buffer used to run from one endpoint to the next, which spans
-        // this app's own answer being spoken aloud. Echo cancellation keeps
-        // that out of the live recognizer, but the buffer still held thirteen
-        // seconds of conversation — so the second recognizer transcribed the
-        // conversation, and returned a different sentence than the one just
-        // said. "I spoke a lot" came back as "Nice vocal note".
+        // The recognizer runs through the answer being spoken. Whatever it
+        // makes of that — leaked voice, a cough, the room — finalizes into the
+        // same accumulating text the next turn is assembled from, and the next
+        // thing actually said arrives with that debris in front of it. It came
+        // out as ", in." and "Check": fragments, with no partials of their own.
+        //
+        // Audio and text both. They are two halves of the same turn and there
+        // is no reason for either to remember what the app itself just said.
         utterance.reset()
+        state.sync {
+            turn = TurnAssembler()
+            partial = ""
+        }
         emit(["type": "speech_end", "interrupted": interrupted])
         drain()
     }
@@ -1019,6 +1026,7 @@ final class VoiceIO: NSObject {
 
     private func configure(_ command: [String: Any]) {
         if let mic = command["micDevice"] as? String { preferBuiltInMic = mic != "default" }
+        if let on = command["trace"] as? Bool { tracing = on }
         if let name = command["voice"] as? String, let resolved = Self.resolveVoice(name) {
             voice = resolved
             emit(["type": "voice", "name": resolved.name, "voiceId": resolved.identifier])
