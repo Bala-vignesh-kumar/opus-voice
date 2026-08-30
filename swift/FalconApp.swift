@@ -120,9 +120,21 @@ final class FalconDelegate: NSObject, NSApplicationDelegate {
   }
 
   /// What a squeeze means. The watcher recognises the gesture; this decides.
+  ///
+  /// The file first, then the window. Waking is the point of the gesture and
+  /// the window is a courtesy — a summon that beat the wake would put a window
+  /// on screen that is still asleep, which reads as the squeeze not working.
+  ///
+  /// Squeezing again while the window is already up is a no-op for the window
+  /// and still a wake, so the gesture means one thing whatever is on screen.
+  ///
+  /// The Siri Shortcut is deliberately not routed through here. It touches the
+  /// same wake file from node's side and summons nothing: you say "hey siri,
+  /// falcon" precisely when you are not at the screen.
   private func wokenByGesture() {
     pokeWakeFile()
     appendToLog("woke by headphone squeeze")
+    openWindow()
   }
 
   /// Touching the file node's Trigger watches. The same door the Siri Shortcut
