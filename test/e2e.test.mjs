@@ -29,7 +29,7 @@ class App {
     this.wakeFile = wakeFile;
     // Point at the real hook by default so tests reflect a set-up machine.
     this.hook = hook ?? path.join(ROOT, 'package.json');
-    this.dir = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
+    this.dir = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-e2e-'));
     this.log = path.join(this.dir, 'asked.log');
     this.spokenLog = path.join(this.dir, 'spoken.log');
     this.inject = path.join(this.dir, 'speech.txt');
@@ -45,7 +45,7 @@ class App {
       '--awake-timeout-ms', '600000',
       '--dir', this.dir,
       // Without this the run files its conversations under the real
-      // ~/.opus-voice/chats, alongside the ones somebody actually had.
+      // ~/.falcon/chats, alongside the ones somebody actually had.
       '--chats-dir', path.join(this.dir, 'chats'),
       // Off unless a test asks for it. Otherwise every case would spawn a real
       // Whisper and load a model, to transcribe audio the stub never recorded.
@@ -55,18 +55,18 @@ class App {
       cwd: ROOT,
       env: {
         ...process.env,
-        OPUS_VOICE_IO_BIN: path.join(STUBS, 'voiceio.mjs'),
-        OPUS_VOICE_CLAUDE_BIN: path.join(STUBS, 'claude.mjs'),
+        FALCON_IO_BIN: path.join(STUBS, 'voiceio.mjs'),
+        FALCON_CLAUDE_BIN: path.join(STUBS, 'claude.mjs'),
         STUB_CLAUDE_LOG: this.log,
         STUB_VOICE_INJECT: this.inject,
         STUB_VOICE_SPOKEN: this.spokenLog,
-        ...(this.wakeFile ? { OPUS_VOICE_WAKE_FILE: this.wakeFile } : {}),
-        OPUS_VOICE_WAKE_HOOK: this.hook,
-        OPUS_VOICE_IGNORE_CONFIG: '1',
+        ...(this.wakeFile ? { FALCON_WAKE_FILE: this.wakeFile } : {}),
+        FALCON_WAKE_HOOK: this.hook,
+        FALCON_IGNORE_CONFIG: '1',
         ...(whisperMode ? {
           STUB_WHISPER_MODE: whisperMode,
-          OPUS_VOICE_WHISPER_BIN: process.execPath,
-          OPUS_VOICE_WHISPER_SERVER: path.join(STUBS, 'whisper_server.mjs'),
+          FALCON_WHISPER_BIN: process.execPath,
+          FALCON_WHISPER_SERVER: path.join(STUBS, 'whisper_server.mjs'),
         } : {}),
       },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -170,7 +170,7 @@ class App {
 test('starts up and reports the recognizer it is using', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     await app.expect('transcriber');
   } finally { app.stop(); }
 });
@@ -178,7 +178,7 @@ test('starts up and reports the recognizer it is using', async () => {
 test('typing a question wakes it and reaches Claude', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('why is my build slow');
     await app.expect('This is the stub answer.');
     assert.deepEqual(app.asked(), ['why is my build slow']);
@@ -191,7 +191,7 @@ test('typing stop while asleep goes to sleep instead of asking Claude', async ()
   // question path and asked Claude about the word "stop".
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('stop');
     await app.settle();
     assert.deepEqual(app.asked(), [], 'the word "stop" must never reach Claude');
@@ -201,7 +201,7 @@ test('typing stop while asleep goes to sleep instead of asking Claude', async ()
 test('typing sleep while asleep does not ask Claude either', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('go to sleep');
     await app.settle();
     assert.deepEqual(app.asked(), []);
@@ -211,7 +211,7 @@ test('typing sleep while asleep does not ask Claude either', async () => {
 test('typing stop after a question puts it back to sleep', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('what did we decide');
     await app.expect('This is the stub answer.');
     app.type('stop');
@@ -223,7 +223,7 @@ test('typing stop after a question puts it back to sleep', async () => {
 test('the wake word alone wakes it without asking anything', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon');
     await app.expect('awake');
     await app.settle();
@@ -234,7 +234,7 @@ test('the wake word alone wakes it without asking anything', async () => {
 test('the name is stripped from a question that carries it', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon, why is my build slow');
     await app.expect('This is the stub answer.');
     assert.deepEqual(app.asked(), ['why is my build slow']);
@@ -247,7 +247,7 @@ test('a discussion is summarized into a titled note under a date folder', async 
   // summary and none of the raw speech.
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon listen');
     await app.expect('taking notes');
 
@@ -285,7 +285,7 @@ test('the summary request tells Claude to look the ticket up', async () => {
   // is worth asserting is that the instruction and the mention both arrive.
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon listen');
     await app.expect('taking notes');
     app.type('we should look at issue 421 before changing it');
@@ -305,7 +305,7 @@ test('note mode never sends the discussion itself to Claude', async () => {
   // question would both answer out loud and leak the room into a turn.
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon listen');
     await app.expect('taking notes');
     app.type('what do you think about the redis approach');
@@ -326,7 +326,7 @@ function todosOnDisk(app) {
 test('a spoken to-do is added without costing a turn', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon, add a todo to ship the redis fix');
     await app.settle();
 
@@ -340,7 +340,7 @@ test('a spoken to-do is added without costing a turn', async () => {
 test('to-dos are completed and removed by the number that was read out', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon, add a todo to ship the redis fix');
     app.type('add a todo to write the migration');
     app.type('add a todo to update the docs');
@@ -368,7 +368,7 @@ test('an ordinary question is still a question', async () => {
   // proving is that it stays out of the way.
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon, can you delete the feature branch');
     await app.expect('This is the stub answer.');
     assert.deepEqual(app.asked(), ['can you delete the feature branch']);
@@ -380,7 +380,7 @@ test('the list survives a restart', async () => {
   const first = new App();
   const dir = first.dir;
   try {
-    await first.expect('opus voice');
+    await first.expect('Falcon');
     first.type('add a todo to ship the redis fix');
     await first.settle();
   } finally { first.stop(); }
@@ -389,7 +389,7 @@ test('the list survives a restart', async () => {
   // keep numbering from where the first left off.
   const second = new App({ dir });
   try {
-    await second.expect('opus voice');
+    await second.expect('Falcon');
     second.type('add a todo to write the migration');
     await second.settle();
     const items = todosOnDisk(second);
@@ -401,7 +401,7 @@ test('the list survives a restart', async () => {
 test('action items from a discussion land on the list', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon listen');
     await app.expect('taking notes');
     app.type('the catch block marks it processed even when it threw');
@@ -447,7 +447,7 @@ for (const route of SLEEP_ROUTES) {
   test(`"${route.say}" puts it to sleep from ${route.mode}`, async () => {
     const app = new App();
     try {
-      await app.expect('opus voice');
+      await app.expect('Falcon');
       for (const line of route.setup) app.type(line);
       await app.waitForMode(route.mode);
       app.type(route.say);
@@ -461,7 +461,7 @@ test('ending note mode goes to sleep rather than staying awake', async () => {
   // talking to each other — the one thing note mode exists to avoid.
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon listen');
     await app.waitForMode('taking notes');
     app.type('the catch block marks it processed even when it threw');
@@ -474,7 +474,7 @@ test('ending note mode goes to sleep rather than staying awake', async () => {
 test('ending note mode with nothing captured also sleeps', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('hey falcon listen');
     await app.waitForMode('taking notes');
     app.type('hey falcon stop');
@@ -489,7 +489,7 @@ test('speech heard while asleep leaves no trace in the transcript', async () => 
   // the way — what is under test is ignored speech, not startup advice.
   const app = new App({ args: ['--hold-mic', 'true'] });
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     await app.waitForMode('asleep');
     const before = app.out.length;
 
@@ -509,7 +509,7 @@ test('speech heard while asleep leaves no trace in the transcript', async () => 
 test('showIgnored brings the old behaviour back for debugging', async () => {
   const app = new App({ args: ['--show-ignored'] });
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     await app.waitForMode('asleep');
     app.speak('you reality I');
     await app.expect('you reality I');
@@ -529,7 +529,7 @@ test('with holdMic off it releases the microphone while asleep', async () => {
 });
 
 test('the wake file opens the microphone and wakes it', async () => {
-  const wake = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'opus-wake-')), 'wake');
+  const wake = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-wake-')), 'wake');
   const app = new App({ args: ['--hold-mic', 'false'], wakeFile: wake });
   try {
     await app.waitForMode('asleep');
@@ -552,7 +552,7 @@ test('the wake file opens the microphone and wakes it', async () => {
 
 test('a wake file left over from last time does not wake it at startup', async () => {
   // The file persists between runs, so a stale one must not fire on boot.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opus-wake-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-wake-'));
   const wake = path.join(dir, 'wake');
   fs.writeFileSync(wake, 'stale');
 
@@ -567,7 +567,7 @@ test('a wake file left over from last time does not wake it at startup', async (
 test('holdMic true keeps the microphone open', async () => {
   const app = new App({ args: ['--hold-mic', 'true'] });
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     await app.settle();
     assert.ok(!app.out.includes('microphone released'), 'nothing is released');
   } finally { app.stop(); }
@@ -584,7 +584,7 @@ test('releasing the mic is the default', async () => {
 test('it says so loudly when nothing can wake it', async () => {
   // Mic released and no Siri hook means the only way in is typing. An app that
   // silently ignores everything you say is the worst outcome here.
-  const app = new App({ hook: path.join(os.tmpdir(), 'opus-no-such-hook') });
+  const app = new App({ hook: path.join(os.tmpdir(), 'falcon-no-such-hook') });
   try {
     await app.expect('npm run siri');
     await app.expect('nothing you say can wake it');
@@ -608,7 +608,7 @@ test('the asleep line says how it can actually be woken', async () => {
 test('the server can be started without opening a window', async () => {
   // A scratch session path: an e2e run must never write over the session the
   // developer is actually using.
-  const session = path.join(os.tmpdir(), `opus-e2e-session-${process.pid}.json`);
+  const session = path.join(os.tmpdir(), `falcon-e2e-session-${process.pid}.json`);
   const app = new App({ args: ['--ui', '--spawn-window', 'false', '--session-file', session] });
   try {
     // The no-spawn path says "serving the window at"; the spawning path says
@@ -659,7 +659,7 @@ test('a whisper failure falls back to the system recognizer', async () => {
 test('a claude session that dies mid-turn is replaced, not fatal', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
 
     app.type('make it die');
     await app.expect('starting a new session');
@@ -676,7 +676,7 @@ test('a claude session that dies mid-turn is replaced, not fatal', async () => {
 test('a claude session that dies over and over does end the app', async () => {
   const app = new App();
   try {
-    await app.expect('opus voice');
+    await app.expect('Falcon');
     app.type('make it die');
     await app.expectCount('starting a new session', 1);
     app.type('make it die');

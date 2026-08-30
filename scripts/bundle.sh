@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Opus Voice.app.
+# Builds Falcon.app.
 #
 # The bundle is a thin launcher: it holds the menu bar binary and nothing else.
 # Copying src/, ui/ and vendor/ in would duplicate 231MB of Piper runtime and
@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd -P)"
 
 green=$'\033[38;5;114m'; amber=$'\033[38;5;179m'; dim=$'\033[2m'; bold=$'\033[1m'; reset=$'\033[0m'
-APP="${OPUS_VOICE_APP_DIR:-/Applications}/Opus Voice.app"
+APP="${FALCON_APP_DIR:-/Applications}/Falcon.app"
 
 NODE="$(command -v node || true)"
 if [ -z "$NODE" ]; then
@@ -23,43 +23,43 @@ if [ -z "$NODE" ]; then
   exit 1
 fi
 
-if [ ! -x bin/opusvoice ]; then
+if [ ! -x bin/falcon ]; then
   printf '%sbuilding first…%s\n' "$dim" "$reset"
   ./build.sh
 fi
-[ -x bin/opusvoice ] || { printf '%s✗%s bin/opusvoice did not build\n' "$amber" "$reset"; exit 1; }
+[ -x bin/falcon ] || { printf '%s✗%s bin/falcon did not build\n' "$amber" "$reset"; exit 1; }
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
-cp bin/opusvoice "$APP/Contents/MacOS/OpusVoice"
+cp bin/falcon "$APP/Contents/MacOS/Falcon"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleIdentifier</key><string>local.opusvoice.app</string>
-  <key>CFBundleName</key><string>opus voice</string>
-  <key>CFBundleDisplayName</key><string>opus voice</string>
-  <key>CFBundleExecutable</key><string>OpusVoice</string>
+  <key>CFBundleIdentifier</key><string>local.falcon.app</string>
+  <key>CFBundleName</key><string>Falcon</string>
+  <key>CFBundleDisplayName</key><string>Falcon</string>
+  <key>CFBundleExecutable</key><string>Falcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <!-- Menu bar only: no dock icon, no window until one is asked for. -->
   <key>LSUIElement</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>Opus Voice listens to your microphone so you can talk to Claude hands-free.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>Opus Voice transcribes your speech on-device so Claude can respond to what you say.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Falcon listens to your microphone so you can talk to Claude hands-free.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Falcon transcribes your speech on-device so Claude can respond to what you say.</string>
   <!-- Recorded rather than discovered: a login-launched app has no PATH and no
        working directory to find these from. -->
-  <key>OVRepoRoot</key><string>$ROOT</string>
-  <key>OVNodePath</key><string>$NODE</string>
+  <key>FalconRepoRoot</key><string>$ROOT</string>
+  <key>FalconNodePath</key><string>$NODE</string>
 </dict>
 </plist>
 PLIST
 
 # Ad-hoc signature so TCC can track the bundle's identity across rebuilds. The
 # permission grant is attached to this, which is why the prompt can finally say
-# "opus voice" rather than "Terminal".
+# "Falcon" rather than "Terminal".
 codesign --force --deep --sign - "$APP" 2>/dev/null
 
 # Verify rather than assume, the same way install.sh does.
@@ -79,9 +79,9 @@ check() {
 }
 
 printf '\n'
-check "the binary is in place" test -x "$APP/Contents/MacOS/OpusVoice"
-check "the repo path is recorded" /usr/libexec/PlistBuddy -c "Print :OVRepoRoot" "$APP/Contents/Info.plist"
-check "the node path is recorded" /usr/libexec/PlistBuddy -c "Print :OVNodePath" "$APP/Contents/Info.plist"
+check "the binary is in place" test -x "$APP/Contents/MacOS/Falcon"
+check "the repo path is recorded" /usr/libexec/PlistBuddy -c "Print :FalconRepoRoot" "$APP/Contents/Info.plist"
+check "the node path is recorded" /usr/libexec/PlistBuddy -c "Print :FalconNodePath" "$APP/Contents/Info.plist"
 check "the signature verifies" codesign --verify --deep "$APP"
 check "config.json sets \"dir\"" node -e 'import("./src/config.mjs").then(m=>process.exit(m.loadConfig().dir?0:1))'
 
@@ -95,6 +95,6 @@ fi
 
 printf '\n%s✓%s %s\n' "$green" "$reset" "$APP"
 printf '\n  Open it once to grant Microphone and Speech Recognition:\n'
-printf '    %sopen -a "Opus Voice"%s\n' "$dim" "$reset"
+printf '    %sopen -a "Falcon"%s\n' "$dim" "$reset"
 printf '\n  It registers itself as a login item on first launch. Turn that off in\n'
 printf '  System Settings › General › Login Items, or from its own menu.\n\n'

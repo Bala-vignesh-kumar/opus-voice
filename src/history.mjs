@@ -6,7 +6,7 @@
 // them.
 //
 // One file per conversation, a day per folder, mirroring how notes/ is laid
-// out. They live under ~/.opus-voice rather than in the working directory on
+// out. They live under ~/.falcon rather than in the working directory on
 // purpose: notes are written because you asked for them and belong with the
 // project, and a transcript of every time you talked to your machine is not
 // something to drop into somebody's repository.
@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { slug } from './notes.mjs';
 
-export const DIR = path.join(os.homedir(), '.opus-voice', 'chats');
+export const DIR = path.join(os.homedir(), '.falcon', 'chats');
 
 // A title is the first thing you said, which is nearly always what the
 // conversation was about. Long enough to be recognisable in a list, short
@@ -86,14 +86,14 @@ export class History {
    * answer join the same turn, for the same reason the window joins them: an
    * answer is a paragraph, not a stack of one-liners.
    */
-  opus(text, first) {
+  falcon(text, first) {
     if (!text?.trim()) return;
     if (!this.record) return;   // nothing said to it yet; not a conversation
     const last = this.record.turns[this.record.turns.length - 1];
-    if (!first && last?.role === 'opus') {
+    if (!first && last?.role === 'falcon') {
       last.text = `${last.text} ${text.trim()}`.trim();
     } else {
-      this.record.turns.push({ role: 'opus', text: text.trim(), at: Date.now() });
+      this.record.turns.push({ role: 'falcon', text: text.trim(), at: Date.now() });
     }
     this.#flush();
   }
@@ -172,7 +172,7 @@ export function list({ dir = DIR, limit = 200 } = {}) {
         continue;   // a half-written file is not worth failing the list over
       }
       const turns = Array.isArray(record.turns) ? record.turns : [];
-      const answer = turns.find((t) => t.role === 'opus');
+      const answer = turns.find((t) => t.role === 'falcon');
       out.push({
         id: idOf(file, dir),
         day,

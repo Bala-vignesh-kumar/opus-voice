@@ -15,10 +15,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 
-export const DIR = path.join(os.homedir(), '.opus-voice');
-export const FILE = process.env.OPUS_VOICE_WAKE_FILE || path.join(DIR, 'wake');
+export const DIR = path.join(os.homedir(), '.falcon');
+export const FILE = process.env.FALCON_WAKE_FILE || path.join(DIR, 'wake');
 /** The script a Shortcut runs. Its presence is how the app knows setup was done. */
-export const HOOK = process.env.OPUS_VOICE_WAKE_HOOK || path.join(DIR, 'wake.sh');
+export const HOOK = process.env.FALCON_WAKE_HOOK || path.join(DIR, 'wake.sh');
 
 /**
  * Watches the wake file and emits 'wake' when it is touched.

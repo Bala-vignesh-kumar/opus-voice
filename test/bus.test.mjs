@@ -11,7 +11,7 @@ function patches(conversation) {
 test('a snapshot describes the whole window', () => {
   const convo = new Conversation();
   convo.you('why is the build slow');
-  convo.opus('the cache is cold.', true);
+  convo.falcon('the cache is cold.', true);
   convo.setMode('chat');
 
   const snapshot = convo.snapshot();
@@ -23,8 +23,8 @@ test('a snapshot describes the whole window', () => {
 test('sentences of one answer join a single entry', () => {
   // Otherwise a four-sentence answer arrives as four stacked bubbles.
   const convo = new Conversation();
-  convo.opus('the cache is cold.', true);
-  convo.opus('it rebuilds every run.', false);
+  convo.falcon('the cache is cold.', true);
+  convo.falcon('it rebuilds every run.', false);
 
   assert.equal(convo.entries.length, 1);
   assert.equal(convo.entries[0].text, 'the cache is cold. it rebuilds every run.');
@@ -32,9 +32,9 @@ test('sentences of one answer join a single entry', () => {
 
 test('a new answer starts a new entry', () => {
   const convo = new Conversation();
-  convo.opus('first answer.', true);
+  convo.falcon('first answer.', true);
   convo.you('and the other one?');
-  convo.opus('second answer.', true);
+  convo.falcon('second answer.', true);
 
   assert.equal(convo.entries.length, 3);
   assert.equal(convo.entries[2].text, 'second answer.');
@@ -43,8 +43,8 @@ test('a new answer starts a new entry', () => {
 test('a continued sentence emits an append, not a new entry', () => {
   const convo = new Conversation();
   const seen = patches(convo);
-  convo.opus('one.', true);
-  convo.opus('two.', false);
+  convo.falcon('one.', true);
+  convo.falcon('two.', false);
 
   assert.deepEqual(seen.map((p) => p.type), ['entry', 'append']);
 });
@@ -76,7 +76,7 @@ test('repeated state changes are not re-announced', () => {
 
 test('interrupting marks the answer that was cut off', () => {
   const convo = new Conversation();
-  convo.opus('here is the long version.', true);
+  convo.falcon('here is the long version.', true);
   convo.interrupted();
 
   assert.equal(convo.entries[0].interrupted, true);

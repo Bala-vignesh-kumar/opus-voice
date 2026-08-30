@@ -7,7 +7,7 @@ import path from 'node:path';
 import { Todos } from '../src/todos.mjs';
 import { parseTodo, toNumber } from '../src/todo-commands.mjs';
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'opus-todos-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-todos-'));
 
 // ------------------------------------------------------------------ the store
 

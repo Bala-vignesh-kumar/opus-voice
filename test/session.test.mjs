@@ -7,7 +7,7 @@ import { write, read, clear } from '../src/session.mjs';
 
 /** A scratch path so a test run never touches a real session. */
 function scratch() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opus-session-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-session-'));
   return path.join(dir, 'session.json');
 }
 

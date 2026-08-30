@@ -51,20 +51,20 @@ fi
 
 # The menu bar app. Like voiceapp it is optional — the terminal workflow does
 # not need it, so a failure here must not stop the audio daemon shipping.
-echo "building opusvoice…"
+echo "building falcon…"
 if swiftc -O \
-  -o bin/opusvoice \
+  -o bin/falcon \
   swift/MenuBarState.swift \
   swift/Environment.swift \
   swift/RemoteCommands.swift \
   swift/Orchestrator.swift \
-  swift/OpusVoiceApp.swift \
+  swift/FalconApp.swift \
   -framework AppKit \
   -framework WebKit \
   -framework MediaPlayer \
   -framework ServiceManagement; then
-  codesign --force --sign - bin/opusvoice 2>/dev/null || true
-  echo "built bin/opusvoice"
+  codesign --force --sign - bin/falcon 2>/dev/null || true
+  echo "built bin/falcon"
 else
-  echo "note: opusvoice did not build — 'npm start' and 'npm run app' still work"
+  echo "note: falcon did not build — 'npm start' and 'npm run app' still work"
 fi

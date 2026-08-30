@@ -34,7 +34,7 @@ final class RemoteCommandWatcher {
 
   private var wakeFile: URL {
     FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".opus-voice/wake")
+      .appendingPathComponent(".falcon/wake")
   }
 
   init(gesture: WakeGesture, forwardToPlayer: Bool, onLog: @escaping (String) -> Void) {
@@ -93,7 +93,7 @@ final class RemoteCommandWatcher {
   /// the system delivers them to one app, and this is how an app volunteers.
   private func claim() {
     MPNowPlayingInfoCenter.default().nowPlayingInfo = [
-      MPMediaItemPropertyTitle: "opus voice",
+      MPMediaItemPropertyTitle: "Falcon",
       MPMediaItemPropertyArtist: "say hey falcon",
       MPNowPlayingInfoPropertyPlaybackRate: 1.0,
     ]

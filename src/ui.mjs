@@ -18,7 +18,12 @@ const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', 
 
 // Every transcript line is indented past a label of this width, so answers form
 // one straight column no matter who is speaking.
-const GUTTER = 6;
+//
+// Wide enough for the longest label plus the two spaces after it. "falcon" is
+// six characters, and a gutter that cannot hold it is not a cramped column but
+// a crash: the padding below is `repeat(GUTTER - 2 - label.length)`, and
+// String.repeat throws on a negative count.
+const GUTTER = 8;
 const MIN_WIDTH = 40;
 const MAX_WIDTH = 100;
 
@@ -68,7 +73,7 @@ export class Ui {
   #say(label, text, { speaker = label, colour = '', dim = false } = {}) {
     const body = wrap(text, this.#width);
     const pad = ' '.repeat(GUTTER);
-    // Labels are right-aligned in the gutter so "you", "opus" and the one-glyph
+    // Labels are right-aligned in the gutter so "you", "falcon" and the one-glyph
     // markers all end at the same column and the text starts at the same one.
     // The label must arrive uncoloured or its escape codes break this padding.
     const head = label
@@ -89,7 +94,7 @@ export class Ui {
     // Which recognizer is running is the single biggest factor in how well it
     // hears a non-US accent, so it goes in the banner rather than a debug log.
     const ears = recognizer === 'SpeechTranscriber' ? 'transcriber' : 'legacy';
-    this.stream.write(`\n${C.bold}opus voice${C.reset} ${C.grey}·${C.reset} ${model} ${C.grey}·${C.reset} ${spoken} ${C.grey}·${C.reset} ${ears} ${quality} ${locale}\n`);
+    this.stream.write(`\n${C.bold}Falcon${C.reset} ${C.grey}·${C.reset} ${model} ${C.grey}·${C.reset} ${spoken} ${C.grey}·${C.reset} ${ears} ${quality} ${locale}\n`);
     // The working directory is the one thing that must never be a surprise: it
     // can edit and run commands in here.
     this.stream.write(`${C.amber}working in${C.reset} ${workdir}\n`);
@@ -107,8 +112,8 @@ export class Ui {
   you(text) { this.#say('you', text, { colour: C.blue }); }
 
   /** Prints a sentence as it is handed to the synthesizer; label only leads. */
-  opus(text, first) {
-    this.#say(first ? 'opus' : '', text, { speaker: 'opus', colour: C.green });
+  falcon(text, first) {
+    this.#say(first ? 'falcon' : '', text, { speaker: 'falcon', colour: C.green });
   }
 
   note(text) { this.#say('', text, { speaker: 'note', dim: true }); }

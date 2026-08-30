@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const DIR = path.join(os.homedir(), '.opus-voice');
+export const DIR = path.join(os.homedir(), '.falcon');
 export const DEFAULT_FILE = path.join(DIR, 'session.json');
 
 /** Writes the session and returns the path it went to. */

@@ -47,8 +47,8 @@ export const DEFAULTS = {
   ui: false,                // open the desktop window (npm run app sets this)
   spawnWindow: true,        // whether --ui also launches bin/voiceapp
   uiPort: 4477,             // loopback port for the window; steps up if taken
-  sessionFile: '',          // where to publish the session; empty = ~/.opus-voice/session.json
-  // Where conversations are kept; empty = ~/.opus-voice/chats. Overridable for
+  sessionFile: '',          // where to publish the session; empty = ~/.falcon/session.json
+  // Where conversations are kept; empty = ~/.falcon/chats. Overridable for
   // the same reason sessionFile is: a test run must not write into the record
   // of the conversations somebody has actually had.
   chatsDir: '',
@@ -61,7 +61,7 @@ export function loadConfig(argv = process.argv.slice(2)) {
   // happens to be on the machine made the suite depend on local settings, so a
   // developer changing one broke tests that had nothing to do with it.
   const file = path.join(ROOT, 'config.json');
-  if (!process.env.OPUS_VOICE_IGNORE_CONFIG && fs.existsSync(file)) {
+  if (!process.env.FALCON_IGNORE_CONFIG && fs.existsSync(file)) {
     try {
       config = { ...config, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
     } catch (err) {
@@ -100,6 +100,6 @@ export function resolveWorkdir(config) {
   // INIT_CWD is where `npm start` was invoked from, which beats process.cwd() —
   // that would be this package, not the user's code.
   return path.resolve(
-    config.dir || process.env.OPUS_VOICE_DIR || process.env.INIT_CWD || process.cwd(),
+    config.dir || process.env.FALCON_DIR || process.env.INIT_CWD || process.cwd(),
   );
 }

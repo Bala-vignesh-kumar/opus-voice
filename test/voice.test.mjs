@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-process.env.OPUS_VOICE_IO_BIN = path.join(ROOT, 'test', 'stubs', 'voiceio.mjs');
+process.env.FALCON_IO_BIN = path.join(ROOT, 'test', 'stubs', 'voiceio.mjs');
 const { VoiceIO } = await import('../src/voice.mjs');
 
 const ready = (v) => new Promise((r) => v.once('ready', r));

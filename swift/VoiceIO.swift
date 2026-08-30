@@ -1,4 +1,4 @@
-// voiceio — the audio half of Opus Voice.
+// voiceio — the audio half of Falcon.
 //
 // Owns the microphone, Apple's on-device recognizer, and speech synthesis in a
 // single process so they can share one audio graph. That sharing is the whole
@@ -454,7 +454,7 @@ final class VoiceIO: NSObject {
         guard InputDevice.setSystemDefault(builtIn) else { return }
         restoreInputTo = current
         emit(["type": "warn", "message":
-            "switched the microphone to \(InputDevice.name(builtIn)) — \(InputDevice.name(current)) is a bluetooth headset and its microphone is narrowband. It goes back when opus voice quits. Set \"micDevice\": \"default\" to leave it alone."])
+            "switched the microphone to \(InputDevice.name(builtIn)) — \(InputDevice.name(current)) is a bluetooth headset and its microphone is narrowband. It goes back when Falcon quits. Set \"micDevice\": \"default\" to leave it alone."])
     }
 
     /// Puts the system microphone back where it was found.
@@ -690,7 +690,7 @@ final class VoiceIO: NSObject {
             running = turn.running
             trace = "final=\(isFinal) text=\(text.debugDescription) running=\(running.debugDescription) barrier=\(suppressed)"
         }
-        if tracing || ProcessInfo.processInfo.environment["OPUS_VOICE_TRACE"] != nil {
+        if tracing || ProcessInfo.processInfo.environment["FALCON_TRACE"] != nil {
             emit(["type": "warn", "message": "trace \(trace)"])
         }
         // Between taking a turn and the barrier landing, results still describe

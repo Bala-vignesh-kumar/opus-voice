@@ -1,5 +1,5 @@
 #!/bin/bash
-# opus voice — one-command install.
+# Falcon — one-command install.
 #
 # Safe to re-run: every step checks whether it already happened. Works both as
 # ./install.sh in a clone and piped from curl, in which case it clones first.
@@ -8,7 +8,7 @@
 # flow tied to your account, so it is reported at the end rather than attempted.
 set -uo pipefail
 
-REPO="https://github.com/Bala-vignesh-kumar/opus-voice.git"
+REPO="https://github.com/Bala-vignesh-kumar/falcon.git"
 
 bold=$'\033[1m'; dim=$'\033[2m'; red=$'\033[38;5;203m'
 green=$'\033[38;5;114m'; amber=$'\033[38;5;179m'; reset=$'\033[0m'
@@ -34,7 +34,7 @@ die() {
 
 step "checking this machine"
 
-[ "$(uname -s)" = "Darwin" ] || die "opus voice is macOS only (the audio engine and speech recognizer are Apple frameworks)."
+[ "$(uname -s)" = "Darwin" ] || die "Falcon is macOS only (the audio engine and speech recognizer are Apple frameworks)."
 ok "macOS $(sw_vers -productVersion) on $(uname -m)"
 
 # Xcode command line tools supply swiftc. The installer is a GUI prompt, so if
@@ -77,13 +77,13 @@ fi
 # ---------------------------------------------------------------- the source
 
 # Piped from curl there is no repo around us, so fetch one.
-if [ -f "package.json" ] && grep -q '"opus-voice"' package.json 2>/dev/null; then
+if [ -f "package.json" ] && grep -q '"falcon"' package.json 2>/dev/null; then
   cd "$(pwd)"
 elif [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/package.json" ]; then
   cd "$(dirname "${BASH_SOURCE[0]}")"
 else
-  step "fetching opus voice"
-  DEST="${OPUS_VOICE_DEST:-$HOME/opus-voice}"
+  step "fetching Falcon"
+  DEST="${FALCON_DEST:-$HOME/falcon}"
   if [ -d "$DEST/.git" ]; then
     info "updating $DEST"
     git -C "$DEST" pull --ff-only || info "could not fast-forward, using what is there"
@@ -133,7 +133,7 @@ step "installing the neural voice"
 # synthesis fails. Catching it here beats debugging a robotic voice later.
 DEPTH=${#ROOT}
 if [ "$DEPTH" -gt 90 ]; then
-  todo "install path is ${DEPTH} characters — too deep for the speech engine, move it somewhere shorter like ~/opus-voice"
+  todo "install path is ${DEPTH} characters — too deep for the speech engine, move it somewhere shorter like ~/falcon"
 fi
 
 VOICE="$(node -e 'import("./src/config.mjs").then(m => process.stdout.write(m.loadConfig().piperVoice))' 2>/dev/null || echo en_US-hfc_female-medium)"
@@ -166,7 +166,7 @@ PY
       ok "neural voice $VOICE (${SIZE}MB, synthesis verified)"
     else
       bad "the voice model is installed but synthesis failed"
-      info "opus voice will fall back to the system voice"
+      info "Falcon will fall back to the system voice"
     fi
   fi
 else

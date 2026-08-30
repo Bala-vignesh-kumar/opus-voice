@@ -36,7 +36,7 @@ final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
       backing: .buffered,
       defer: false
     )
-    window.title = "opus voice"
+    window.title = "Falcon"
     window.titlebarAppearsTransparent = true
     window.titleVisibility = .hidden
     // The ground the page paints, so the half-second before the first frame is
@@ -49,7 +49,7 @@ final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     window.collectionBehavior.insert(.fullScreenPrimary)
     window.contentView = web
     window.center()
-    window.setFrameAutosaveName("opus-voice")
+    window.setFrameAutosaveName("falcon")
     window.makeKeyAndOrderFront(nil)
 
     web.load(URLRequest(url: url))
@@ -69,10 +69,10 @@ final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   ///
   /// Opt-out rather than opt-in because this is what the app is for — it starts
   /// at login and takes the display. But it starts at login, which is exactly
-  /// when you cannot get at a setting to stop it, so `OV_FULLSCREEN=0` is the
+  /// when you cannot get at a setting to stop it, so `FALCON_FULLSCREEN=0` is the
   /// way back out of a machine that boots into a screen you did not want.
   private static var wantsFullScreen: Bool {
-    let flag = ProcessInfo.processInfo.environment["OV_FULLSCREEN"]
+    let flag = ProcessInfo.processInfo.environment["FALCON_FULLSCREEN"]
     return !(flag == "0" || flag == "false" || flag == "no")
   }
 
@@ -119,7 +119,7 @@ func sessionURL() -> URL? {
     return given
   }
   let file = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent(".opus-voice/session.json")
+    .appendingPathComponent(".falcon/session.json")
   guard
     let data = try? Data(contentsOf: file),
     let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -131,7 +131,7 @@ func sessionURL() -> URL? {
 
 guard let target = sessionURL() else {
   FileHandle.standardError.write(
-    "voiceapp: no session — start opus voice first, or pass a url\n".data(using: .utf8)!)
+    "voiceapp: no session — start Falcon first, or pass a url\n".data(using: .utf8)!)
   exit(2)
 }
 
@@ -145,10 +145,10 @@ let menu = NSMenu()
 let appItem = NSMenuItem()
 menu.addItem(appItem)
 let appMenu = NSMenu()
-appMenu.addItem(withTitle: "Hide opus voice", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+appMenu.addItem(withTitle: "Hide Falcon", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
 appMenu.addItem(NSMenuItem.separator())
 appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-appMenu.addItem(withTitle: "Quit opus voice", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+appMenu.addItem(withTitle: "Quit Falcon", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 appItem.submenu = appMenu
 
 let editItem = NSMenuItem()

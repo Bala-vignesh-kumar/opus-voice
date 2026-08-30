@@ -9,7 +9,7 @@
 #
 # The way around it is to let Siri do the listening. A Shortcut is something Siri
 # can already run by name, so a Shortcut that pokes this app turns Apple's wake
-# word into ours — and opus voice can then keep the microphone closed until it
+# word into ours — and Falcon can then keep the microphone closed until it
 # is actually wanted.
 set -euo pipefail
 
@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 bold=$'\033[1m'; dim=$'\033[2m'; green=$'\033[38;5;114m'
 amber=$'\033[38;5;179m'; reset=$'\033[0m'
 
-WAKE_DIR="$HOME/.opus-voice"
+WAKE_DIR="$HOME/.falcon"
 WAKE_FILE="$WAKE_DIR/wake"
 HOOK="$WAKE_DIR/wake.sh"
 
@@ -27,7 +27,7 @@ PHRASE="$(node -e 'import("./src/config.mjs").then(m => process.stdout.write(m.l
 mkdir -p "$WAKE_DIR"
 cat > "$HOOK" <<EOF
 #!/bin/bash
-# Poked by a Shortcut; opus voice watches this file and wakes when it changes.
+# Poked by a Shortcut; Falcon watches this file and wakes when it changes.
 #
 # Shortcuts runs shell actions in a sandbox with a stripped PATH, so no external
 # command can be assumed to exist — even \`touch\` fails with "No such file or
@@ -113,7 +113,7 @@ ${bold}And set this in config.json${reset}
 
     "holdMic": false
 
-That is what makes opus voice release the microphone while it sleeps. Without
+That is what makes Falcon release the microphone while it sleeps. Without
 it the app still works, but it keeps the microphone open and listens for its own
 wake phrase, which is the thing you are trying to avoid.
 

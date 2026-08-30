@@ -84,7 +84,7 @@ function paint() {
   else if (k === 'listening') label = 'listening';
   stateLabel.textContent = label;
 
-  const answer = lastOf('opus');
+  const answer = lastOf('falcon');
   sayEl.classList.toggle('partial', Boolean(partial));
   sayEl.classList.toggle('cut', !partial && Boolean(answer?.interrupted));
 
@@ -196,7 +196,7 @@ function setView(next) {
 async function api(path, params) {
   const url = new URL(path, location.origin);
   for (const [k, v] of Object.entries(params ?? {})) url.searchParams.set(k, v);
-  const res = await fetch(url, { headers: { 'x-opus-token': token } });
+  const res = await fetch(url, { headers: { 'x-falcon-token': token } });
   if (!res.ok) throw new Error(String(res.status));
   return res.json();
 }
@@ -667,7 +667,7 @@ function connect() {
 function send(command) {
   fetch('/command', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-opus-token': token },
+    headers: { 'content-type': 'application/json', 'x-falcon-token': token },
     body: JSON.stringify(command),
   }).catch(() => {});
 }

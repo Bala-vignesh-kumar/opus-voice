@@ -88,14 +88,14 @@ export class Conversation extends EventEmitter {
    * answer join the same entry, so the window shows a paragraph growing rather
    * than a stack of one-line bubbles.
    */
-  opus(text, first) {
+  falcon(text, first) {
     const last = this.entries[this.entries.length - 1];
-    if (!first && last?.role === 'opus') {
+    if (!first && last?.role === 'falcon') {
       last.text = `${last.text} ${text}`.trim();
       this.emit('change', { type: 'append', id: last.id, text });
       return last;
     }
-    return this.#push({ role: 'opus', text });
+    return this.#push({ role: 'falcon', text });
   }
 
   /** Speech captured in note mode, which is never answered. */
@@ -114,7 +114,7 @@ export class Conversation extends EventEmitter {
   /** Marks the answer that was cut off, rather than silently truncating it. */
   interrupted() {
     const last = this.entries[this.entries.length - 1];
-    if (last?.role !== 'opus' || last.interrupted) return;
+    if (last?.role !== 'falcon' || last.interrupted) return;
     last.interrupted = true;
     this.emit('change', { type: 'interrupted', id: last.id });
   }

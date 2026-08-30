@@ -89,7 +89,7 @@ export class UiServer {
     if (url.searchParams.get('k') === this.token) return true;
     // The page itself carries the token in its query string, so its fetches can
     // also present it in a header.
-    return req.headers['x-opus-token'] === this.token;
+    return req.headers['x-falcon-token'] === this.token;
   }
 
   #route(req, res) {

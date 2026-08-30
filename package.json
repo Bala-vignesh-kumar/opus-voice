@@ -1,10 +1,10 @@
 {
-  "name": "opus-voice",
+  "name": "falcon",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "opus-voice": "src/index.mjs"
+    "falcon": "src/index.mjs"
   },
   "scripts": {
     "build": "./build.sh",

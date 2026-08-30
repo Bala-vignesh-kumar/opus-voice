@@ -24,10 +24,10 @@ export function makeView(ui, conversation, history = null) {
     },
 
     /** A sentence handed to the synthesizer. `first` leads a new answer. */
-    opus(text, first) {
-      ui.opus(text, first);
-      conversation.opus(text, first);
-      history?.opus(text, first);
+    falcon(text, first) {
+      ui.falcon(text, first);
+      conversation.falcon(text, first);
+      history?.falcon(text, first);
     },
 
     note(text) {

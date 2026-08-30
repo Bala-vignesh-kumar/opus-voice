@@ -12,7 +12,7 @@
 
 cd "$(dirname "$0")/.."
 
-OUT="opus-voice-diagnostics.txt"
+OUT="falcon-diagnostics.txt"
 : > "$OUT"
 
 say()  { printf '%s\n' "$*" | tee -a "$OUT"; }
@@ -27,7 +27,7 @@ run()  {
 
 say "collecting diagnostics into $OUT — this takes a minute…"
 
-only "opus voice diagnostics"
+only "Falcon diagnostics"
 only "generated $(date)"
 only "========================================"
 
@@ -42,7 +42,7 @@ run swiftc --version
 run xcode-select -p
 
 only ""
-only "---------- opus voice ----------"
+only "---------- Falcon ----------"
 run git rev-parse --short HEAD
 run git status --short
 only ""

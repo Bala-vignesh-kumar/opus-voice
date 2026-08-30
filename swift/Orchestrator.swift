@@ -22,7 +22,7 @@ final class Orchestrator {
 
   private var sessionFile: URL {
     FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".opus-voice/session.json")
+      .appendingPathComponent(".falcon/session.json")
   }
 
   /// Everything node prints. Sent to a file rather than /dev/null because the
@@ -32,7 +32,7 @@ final class Orchestrator {
   /// silent about the one thing a person would be standing there wondering.
   var logFile: URL {
     FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".opus-voice/opus-voice.log")
+      .appendingPathComponent(".falcon/falcon.log")
   }
 
   init(launch: Launch, onChange: @escaping () -> Void) {
@@ -120,7 +120,7 @@ final class Orchestrator {
     let minuteAgo = Date().addingTimeInterval(-60)
     restarts = restarts.filter { $0 > minuteAgo }
     guard restarts.count < 3 else {
-      problem = "opus voice keeps stopping — run npm start in \(launch.repoRoot.path) to see why"
+      problem = "Falcon keeps stopping — run npm start in \(launch.repoRoot.path) to see why"
       return
     }
     restarts.append(Date())
@@ -144,7 +144,7 @@ final class Orchestrator {
       if Date() > deadline {
         timer.invalidate()
         self.problem =
-          "opus voice did not finish starting — run npm start in \(self.launch.repoRoot.path)"
+          "Falcon did not finish starting — run npm start in \(self.launch.repoRoot.path)"
       }
     }
   }

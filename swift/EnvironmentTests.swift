@@ -33,7 +33,7 @@ func runEnvironmentTests() -> Int {
 
   let fm = FileManager.default
   let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
-    .appendingPathComponent("opus-env-\(UUID().uuidString)")
+    .appendingPathComponent("falcon-env-\(UUID().uuidString)")
   try! fm.createDirectory(at: tmp, withIntermediateDirectories: true)
   defer { try? fm.removeItem(at: tmp) }
 

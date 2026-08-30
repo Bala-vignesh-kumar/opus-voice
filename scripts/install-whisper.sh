@@ -48,6 +48,6 @@ then
   printf '  %s./scripts/measure-whisper.sh SAMPLE.wav%s prints speed for your own voice.\n\n' "$dim" "$reset"
 else
   printf '\n%s✗%s whisper installed but would not transcribe\n' "$amber" "$reset"
-  printf '  opus voice still works — it will use the system recognizer.\n\n'
+  printf '  Falcon still works — it will use the system recognizer.\n\n'
   exit 1
 fi

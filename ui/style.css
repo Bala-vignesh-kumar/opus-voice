@@ -7,7 +7,7 @@
   --soft: #a7adb6;
   --faint: #6b717b;
   --you: #7fb3ff;
-  --opus: #8fd9a8;
+  --falcon: #8fd9a8;
   --amber: #e0b473;
   --red: #f08c86;
   --rail: 300px;
@@ -88,7 +88,7 @@ body {
   flex: none;
   transition: background 0.4s, box-shadow 0.4s;
 }
-.mark .d.on { background: var(--opus); box-shadow: 0 0 10px rgba(143, 217, 168, 0.8); }
+.mark .d.on { background: var(--falcon); box-shadow: 0 0 10px rgba(143, 217, 168, 0.8); }
 
 .nav {
   position: fixed;
@@ -147,8 +147,8 @@ body {
 
 /* The state colours are the app's vocabulary and predate this design: green is
    listening, amber is note mode, blue is its own voice. */
-.state[data-kind="listening"] { color: var(--opus); }
-.state[data-kind="listening"] .d { background: var(--opus); box-shadow: 0 0 10px rgba(143, 217, 168, 0.9); }
+.state[data-kind="listening"] { color: var(--falcon); }
+.state[data-kind="listening"] .d { background: var(--falcon); box-shadow: 0 0 10px rgba(143, 217, 168, 0.9); }
 .state[data-kind="thinking"] { color: var(--amber); }
 .state[data-kind="thinking"] .d { background: var(--amber); box-shadow: 0 0 10px rgba(224, 180, 115, 0.9); }
 .state[data-kind="speaking"] { color: var(--you); }
@@ -384,7 +384,7 @@ body {
   background: rgba(255, 255, 255, 0.055);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.045);
 }
-.meeting.next .at { color: var(--opus); }
+.meeting.next .at { color: var(--falcon); }
 .meeting.next .ttl { color: var(--text); font-weight: 590; }
 
 /* ----------------------------------------------------------- browse views */
@@ -431,7 +431,7 @@ body {
   cursor: pointer;
 }
 .item:hover { background: rgba(255, 255, 255, 0.045); }
-.item.on { background: rgba(255, 255, 255, 0.07); border-left-color: var(--opus); }
+.item.on { background: rgba(255, 255, 255, 0.07); border-left-color: var(--falcon); }
 .item.on .ttl { color: var(--text); }
 .item .top { display: flex; align-items: baseline; gap: 9px; }
 .item .ttl {
@@ -489,9 +489,9 @@ body {
   color: var(--faint);
 }
 .turn.you .who { color: var(--you); }
-.turn.opus .who { color: var(--opus); }
+.turn.falcon .who { color: var(--falcon); }
 .turn.you .tx { color: var(--soft); font-size: 15.5px; line-height: 1.6; }
-.turn.opus .tx { color: var(--text); font-size: 16.5px; line-height: 1.7; }
+.turn.falcon .tx { color: var(--text); font-size: 16.5px; line-height: 1.7; }
 
 /* The note body is markdown on disk and stays legible as plain text; it is
    rendered as prose rather than parsed, because the only markup it carries is

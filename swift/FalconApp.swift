@@ -36,8 +36,8 @@ final class MenuBar: NSObject, NSApplicationDelegate {
 
     let info = Bundle.main.infoDictionary
     switch resolveLaunch(
-      repoRoot: info?["OVRepoRoot"] as? String,
-      nodePath: info?["OVNodePath"] as? String
+      repoRoot: info?["FalconRepoRoot"] as? String,
+      nodePath: info?["FalconNodePath"] as? String
     ) {
     case .failure(let problem):
       launchProblem = problem
@@ -103,7 +103,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
 
   private func render() {
     let symbol = menuBarSymbol(mode: mode, status: status, failed: failureMessage != nil)
-    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "opus voice")
+    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Falcon")
     image?.isTemplate = true
     item.button?.image = image
     item.menu = buildMenu()
@@ -155,11 +155,11 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     for entry in incoming {
       guard
         let kind = entry["type"] as? String,
-        kind == "you" || kind == "opus",
+        kind == "you" || kind == "falcon",
         let text = entry["text"] as? String,
         !text.isEmpty
       else { continue }
-      recent.append((who: kind == "you" ? "you" : "opus", text: text))
+      recent.append((who: kind == "you" ? "you" : "falcon", text: text))
     }
     if recent.count > 6 { recent.removeFirst(recent.count - 6) }
   }
@@ -175,7 +175,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       menu.addItem(problem)
       menu.addItem(.separator())
       menu.addItem(withTitle: "Open Log", action: #selector(openLog), keyEquivalent: "").target = self
-      menu.addItem(withTitle: "Quit opus voice", action: #selector(quit), keyEquivalent: "q").target = self
+      menu.addItem(withTitle: "Quit Falcon", action: #selector(quit), keyEquivalent: "q").target = self
       return menu
     }
 
@@ -188,7 +188,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     } else {
       for line in recent {
         let trimmed = line.text.count > 60 ? String(line.text.prefix(59)) + "…" : line.text
-        let item = NSMenuItem(title: "\(line.who == "you" ? "you" : "opus")   \(trimmed)",
+        let item = NSMenuItem(title: "\(line.who == "you" ? "you" : "falcon")   \(trimmed)",
                               action: nil, keyEquivalent: "")
         item.isEnabled = false
         menu.addItem(item)
@@ -218,7 +218,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     menu.addItem(login)
 
     menu.addItem(.separator())
-    menu.addItem(withTitle: "Quit opus voice", action: #selector(quit), keyEquivalent: "q").target = self
+    menu.addItem(withTitle: "Quit Falcon", action: #selector(quit), keyEquivalent: "q").target = self
     return menu
   }
 
@@ -229,7 +229,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     guard let url = orchestrator?.sessionURL ?? Self.sessionURLOnDisk() else {
       let alert = NSAlert()
       alert.messageText = "No session to show yet"
-      alert.informativeText = "opus voice is still starting, or node is not running. Open Log from this menu to see why."
+      alert.informativeText = "Falcon is still starting, or node is not running. Open Log from this menu to see why."
       alert.runModal()
       return
     }
@@ -250,7 +250,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       contentRect: NSRect(x: 0, y: 0, width: 760, height: 700),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false)
-    created.title = "opus voice"
+    created.title = "Falcon"
     created.titlebarAppearsTransparent = true
     created.titleVisibility = .hidden
     created.backgroundColor = NSColor(red: 0.051, green: 0.055, blue: 0.067, alpha: 1)
@@ -258,7 +258,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     created.minSize = NSSize(width: 480, height: 420)
     created.contentView = web
     created.center()
-    created.setFrameAutosaveName("opus-voice")
+    created.setFrameAutosaveName("falcon")
     created.isReleasedWhenClosed = false   // reopened from the menu, not rebuilt
     created.makeKeyAndOrderFront(nil)
     window = created
@@ -277,7 +277,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   @objc private func openProject() {
     let info = Bundle.main.infoDictionary
     guard case .success(let launch) = resolveLaunch(
-      repoRoot: info?["OVRepoRoot"] as? String, nodePath: info?["OVNodePath"] as? String)
+      repoRoot: info?["FalconRepoRoot"] as? String, nodePath: info?["FalconNodePath"] as? String)
     else { return }
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: launch.projectDir.path)
   }
@@ -288,7 +288,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   /// than interleave with it.
   private func appendToLog(_ message: String) {
     guard let log = orchestrator?.logFile else { return }
-    guard let data = "opus voice: \(message)\n".data(using: .utf8) else { return }
+    guard let data = "Falcon: \(message)\n".data(using: .utf8) else { return }
     // Never truncating: node owns that, and this is the second writer.
     let handle = Orchestrator.openLog(at: log, truncating: false)
     handle.write(data)
@@ -308,7 +308,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
         try SMAppService.mainApp.register()
       }
     } catch {
-      NSLog("opus voice: could not change the login item: \(error.localizedDescription)")
+      NSLog("Falcon: could not change the login item: \(error.localizedDescription)")
     }
     render()
   }
@@ -320,7 +320,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   /// The session as written on disk, for when the in-memory copy is missing.
   static func sessionURLOnDisk() -> URL? {
     let file = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".opus-voice/session.json")
+      .appendingPathComponent(".falcon/session.json")
     guard
       let data = try? Data(contentsOf: file),
       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -345,7 +345,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     var request = URLRequest(url: endpoint)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "content-type")
-    request.setValue(token, forHTTPHeaderField: "x-opus-token")
+    request.setValue(token, forHTTPHeaderField: "x-falcon-token")
     request.httpBody = data
     URLSession.shared.dataTask(with: request).resume()
   }
@@ -353,7 +353,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   /// Registered once, on first launch, and never again — so turning it off in
   /// System Settings stays off instead of being undone at the next launch.
   private func registerLoginItemOnce() {
-    let key = "OVDidRegisterLoginItem"
+    let key = "FalconDidRegisterLoginItem"
     guard !UserDefaults.standard.bool(forKey: key) else { return }
     UserDefaults.standard.set(true, forKey: key)
     try? SMAppService.mainApp.register()
@@ -363,7 +363,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
 // @main rather than top-level code: this file is compiled alongside three
 // others, and only main.swift may carry statements at file scope.
 @main
-struct OpusVoice {
+struct Falcon {
   static func main() {
     let app = NSApplication.shared
     // Held for the process lifetime; NSApplication does not retain its delegate.

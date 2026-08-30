@@ -33,7 +33,7 @@ test('the window is served and the token is in its url', async () => {
   try {
     const page = await fetch(`${base}/`);
     assert.equal(page.status, 200);
-    assert.match(await page.text(), /opus voice/);
+    assert.match(await page.text(), /Falcon/);
     assert.ok(url.includes(token));
   } finally {
     server.close();
@@ -54,7 +54,7 @@ test('commands without the token are refused', async () => {
 
     const wrong = await fetch(`${base}/command`, {
       method: 'POST',
-      headers: { 'x-opus-token': 'not-the-token' },
+      headers: { 'x-falcon-token': 'not-the-token' },
       body: JSON.stringify({ cmd: 'say', text: 'nope' }),
     });
     assert.equal(wrong.status, 403);
@@ -69,7 +69,7 @@ test('commands with the token arrive intact', async () => {
   try {
     const response = await fetch(`${base}/command`, {
       method: 'POST',
-      headers: { 'x-opus-token': token },
+      headers: { 'x-falcon-token': token },
       body: JSON.stringify({ cmd: 'say', text: 'why is the build slow' }),
     });
     assert.equal(response.status, 204);
@@ -122,7 +122,7 @@ function read__frame(chunk) {
 }
 
 test('listening publishes the session, closing withdraws it', async () => {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'opus-srv-')), 'session.json');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-srv-')), 'session.json');
   const server = new UiServer(new Conversation(), () => {}, { port: nextPort++, sessionFile: file });
   try {
     const url = await server.listen();
@@ -150,9 +150,9 @@ test('the session can be turned off entirely', async () => {
 
 test('the suite never touches the real session file', async () => {
   // Regression: every server test but two left sessionFile at its default,
-  // which is ~/.opus-voice/session.json. Running the suite while the menu bar
+  // which is ~/.falcon/session.json. Running the suite while the menu bar
   // app was up wrote over its session and then deleted it on close.
-  const real = path.join(os.homedir(), '.opus-voice', 'session.json');
+  const real = path.join(os.homedir(), '.falcon', 'session.json');
   const before = fs.existsSync(real) ? fs.readFileSync(real, 'utf8') : null;
 
   const server = new UiServer(new Conversation(), () => {}, { port: nextPort++, sessionFile: null });

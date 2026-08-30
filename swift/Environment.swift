@@ -28,7 +28,7 @@ enum LaunchProblem: Error {
   var message: String {
     switch self {
     case .repoMissing(let path):
-      return "opus voice is not at \(path) — re-run scripts/bundle.sh"
+      return "Falcon is not at \(path) — re-run scripts/bundle.sh"
     case .nodeMissing(let path):
       return "node not found at \(path) or anywhere expected — re-run scripts/bundle.sh"
     case .projectUnset:

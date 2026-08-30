@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// opus voice — hands-free spoken conversation with Claude in the terminal.
+// Falcon — hands-free spoken conversation with Claude in the terminal.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,6 +28,7 @@ import { Whisper, available as whisperAvailable } from './whisper.mjs';
 import { acceptable } from './transcript-guard.mjs';
 import { Trigger, FILE as WAKE_FILE, HOOK } from './trigger.mjs';
 import { checkShortcut } from './siri.mjs';
+import { migrate } from './migrate.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -43,6 +44,26 @@ const ui = new Ui();
 const conversation = new Conversation();
 const history = new History({ dir: config.chatsDir || undefined, workdir: config.dir });
 const view = makeView(ui, conversation, history);
+
+// This app used to be called opus voice, and everything it remembered lived
+// under ~/.opus-voice. Carried across on the first run under the new name; the
+// old directory is left alone as the backup.
+//
+// Skipped when `chatsDir` points somewhere else. That is either a test run or
+// somebody who has deliberately moved their conversations, and neither has
+// anything to bring over from a default location they are not using.
+if (!config.chatsDir) {
+  const carried = migrate();
+  if (carried.problem) {
+    view.warn(`could not carry the old conversations across: ${carried.problem}`);
+    view.warn('they are still in ~/.opus-voice — nothing was lost');
+  } else if (carried.migrated) {
+    const many = carried.chats === 1 ? 'conversation' : 'conversations';
+    view.note(`carried ${carried.chats} ${many} over from ~/.opus-voice, which is kept as a backup`);
+    if (carried.hook) view.note('the Siri hook now points at the new wake file');
+  }
+}
+
 const voice = new VoiceIO({
   locale: config.locale,
   echoCancellation: config.echoCancellation,
@@ -53,7 +74,7 @@ const claude = new ClaudeSession({
   effort: config.effort,
   cwd: workdir,
   permissionMode: config.permissionMode,
-  bin: config.claudeBin || process.env.OPUS_VOICE_CLAUDE_BIN,
+  bin: config.claudeBin || process.env.FALCON_CLAUDE_BIN,
 });
 const speaker = new Speaker(voice, {
   engine: config.tts,
@@ -67,15 +88,15 @@ const speaker = new Speaker(voice, {
 // installed means we use Apple's text everywhere, exactly as before this existed.
 let whisper = null;
 if (config.stt === 'whisper') {
-  if (whisperAvailable() || process.env.OPUS_VOICE_WHISPER_SERVER) {
+  if (whisperAvailable() || process.env.FALCON_WHISPER_SERVER) {
     whisper = new Whisper({
       model: config.whisperModel,
       timeoutMs: config.whisperTimeoutMs,
       // The project's own name is the word most likely to be said and least
       // likely to be known, so it is seeded automatically.
       vocabulary: [...new Set([...(config.vocabulary || []), path.basename(workdir)])].filter(Boolean),
-      bin: process.env.OPUS_VOICE_WHISPER_BIN,
-      server: process.env.OPUS_VOICE_WHISPER_SERVER,
+      bin: process.env.FALCON_WHISPER_BIN,
+      server: process.env.FALCON_WHISPER_SERVER,
     });
     whisper.on('warn', (message) => view.warn(message));
   } else {
@@ -106,7 +127,7 @@ const turn = {
   fillerTimer: null,
   queued: null,       // utterance that arrived while Opus was still answering
   line: '',           // accumulated text for the transcript display
-  labelled: false,    // has the transcript printed the "opus" prefix this turn
+  labelled: false,    // has the transcript printed the "falcon" prefix this turn
   tools: 0,           // tool calls so far this turn
   lastNarration: 0,
   asked: 0,
@@ -114,9 +135,9 @@ const turn = {
   raw: '',            // unmodified model output, for writing to disk
 };
 
-// OPUS_VOICE_TIMING=1 reports how long until the first real word is spoken,
+// FALCON_TIMING=1 reports how long until the first real word is spoken,
 // which is the number that actually decides whether this feels live.
-const TIMING = Boolean(process.env.OPUS_VOICE_TIMING);
+const TIMING = Boolean(process.env.FALCON_TIMING);
 
 // MARK: turn lifecycle
 
@@ -160,7 +181,7 @@ function say(sentence) {
   turn.spoke = true;
   clearTimeout(turn.fillerTimer);
   turn.line = sentence;
-  view.opus(sentence, first);
+  view.falcon(sentence, first);
   view.spin('speaking');
   speaker.say(sentence);
 }
@@ -297,7 +318,7 @@ async function fileIssue(id) {
   try {
     const issue = await createIssue({
       title: item.text,
-      body: 'Filed by opus voice from a spoken to-do.',
+      body: 'Filed by Falcon from a spoken to-do.',
       cwd: workdir,
     });
     todos.linkIssue(item.id, issue);
@@ -460,12 +481,12 @@ voice.on('partial', (text) => {
 let lastUtterance = null;
 voice.on('utterance', (event) => {
   lastUtterance = event;
-  // OPUS_VOICE_DUMP_AUDIO=/tmp/dump writes each turn's audio as a wav, so what
+  // FALCON_DUMP_AUDIO=/tmp/dump writes each turn's audio as a wav, so what
   // the second recognizer was actually handed can be listened to rather than
   // reasoned about.
   // Config as well as env, because the bundled app is launched by macOS and
   // never sees a shell environment.
-  if (config.dumpAudio || process.env.OPUS_VOICE_DUMP_AUDIO) dumpUtterance(event);
+  if (config.dumpAudio || process.env.FALCON_DUMP_AUDIO) dumpUtterance(event);
 });
 
 /** Writes one turn's audio to <prefix>-N.wav. Debug only. */
@@ -488,7 +509,7 @@ function dumpUtterance(event) {
   header.writeUInt16LE(1, 22); header.writeUInt32LE(rate, 24);
   header.writeUInt32LE(rate * 2, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
   header.write('data', 36); header.writeUInt32LE(pcm16.length, 40);
-  const prefix = config.dumpAudio || process.env.OPUS_VOICE_DUMP_AUDIO;
+  const prefix = config.dumpAudio || process.env.FALCON_DUMP_AUDIO;
   const file = `${prefix}-${++dumpCount}.wav`;
   fs.writeFileSync(file, Buffer.concat([header, pcm16]));
   view.note(`audio dumped to ${file} (${(samples.length / rate).toFixed(1)}s, peak ${event.peak?.toFixed(3)})`);

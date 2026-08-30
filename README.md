@@ -1,17 +1,17 @@
-# opus voice
+# Falcon
 
 Hands-free spoken conversation with Claude, in the terminal. You talk, it thinks,
 it answers out loud, and you can cut it off mid-sentence the way you would a person.
 
 ```
-opus voice · opus · piper neural · on-device en-IN
+Falcon · opus · piper neural · on-device en-IN
   ›  asleep — say "hey falcon" to wake
 
-you  hey falcon, why is my build slow?
-     … "mm, let me think"
-opus It's the cache — it's rebuilding from scratch every run.
-     That's most of your build time, and it's a two-line fix.
-     Want me to walk you through it?
+   you  hey falcon, why is my build slow?
+        … "mm, let me think"
+falcon  It's the cache — it's rebuilding from scratch every run.
+        That's most of your build time, and it's a two-line fix.
+        Want me to walk you through it?
 ```
 
 ## Wake word
@@ -160,7 +160,7 @@ One command. It installs everything, checks it actually works, and tells you the
 only two things it cannot do for you.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Bala-vignesh-kumar/opus-voice/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Bala-vignesh-kumar/falcon/main/install.sh | bash
 ```
 
 Or in a clone:
@@ -192,13 +192,13 @@ npm start           # terminal
 
 The first run asks for **Microphone** and **Speech Recognition** permission. macOS
 attributes those to your terminal app, so the prompt says Terminal or iTerm rather
-than opus voice. If you miss the prompt, grant them under System Settings ›
+than Falcon. If you miss the prompt, grant them under System Settings ›
 Privacy & Security.
 
 Requires macOS, Node 18+, the Swift toolchain (Xcode command line tools), and a
 working `claude` CLI. No API key — it uses the Claude Code auth you already have.
 
-Install it somewhere with a short path, like `~/opus-voice`. The speech engine
+Install it somewhere with a short path, like `~/falcon`. The speech engine
 keeps its data path in a fixed 160-character buffer, and an install buried deep
 enough to overflow it falls back to the robotic system voice. `install.sh` warns
 you if you are close.
@@ -245,7 +245,7 @@ Then set `"piperVoice": "en_US-ryan-high"` in `config.json`. Any locale works, n
 just American English — `en_GB-alba-medium`, `de_DE-thorsten-high` and so on.
 
 **If anything fails.** Run `npm run doctor`. It writes
-`opus-voice-diagnostics.txt` with this machine's versions, the exact download URL,
+`falcon-diagnostics.txt` with this machine's versions, the exact download URL,
 whether that URL is reachable from here, and the full output of the step that
 failed — which is the thing worth sending when asking for help.
 
@@ -272,7 +272,7 @@ you have.
 
 ## Running it at login
 
-`npm run bundle` builds `Opus Voice.app` into `/Applications` and registers it as
+`npm run bundle` builds `Falcon.app` into `/Applications` and registers it as
 a login item. It has no dock icon and opens no window — it is a menu bar glyph
 that tells you what it is doing:
 
@@ -301,7 +301,7 @@ choosing deliberately rather than pointing at your home directory.
 **It may ask for permissions again.** The bundle is a new identity as far as
 macOS is concerned, so Microphone and Speech Recognition can be requested once
 more even though your terminal already has them. When the prompt does appear it
-says *opus voice* rather than *Terminal*, which is the point.
+says *Falcon* rather than *Terminal*, which is the point.
 
 **Moving the repository breaks it.** The app records where the code is when you
 bundle it, and runs against your working tree rather than a copy — so `git pull`
@@ -455,7 +455,7 @@ three independent guards against it interrupting itself.
 | `ui` | `false` | open the desktop window (`npm run app` sets it) |
 | `uiPort` | `4477` | loopback port for the window, steps up if taken |
 | `spawnWindow` | `true` | whether `--ui` also opens the window, or only serves it |
-| `sessionFile` | `~/.opus-voice/session.json` | where the session url is published |
+| `sessionFile` | `~/.falcon/session.json` | where the session url is published |
 | `greeting` | *see config* | spoken at startup, `""` to disable |
 
 ```sh
@@ -486,7 +486,7 @@ though the real answer lands around two seconds.
 To see the numbers yourself:
 
 ```sh
-OPUS_VOICE_TIMING=1 npm start
+FALCON_TIMING=1 npm start
 ```
 
 ## Tools

@@ -8,7 +8,7 @@ import path from 'node:path';
 
 // Overridable so an end-to-end test can drive the app with a stub daemon
 // instead of real hardware; nothing else should set it.
-const BINARY = process.env.OPUS_VOICE_IO_BIN || path.resolve(
+const BINARY = process.env.FALCON_IO_BIN || path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../bin/voiceio',
 );

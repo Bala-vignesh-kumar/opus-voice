@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { Notes, SUMMARY_PROMPT, splitSummary, slug } from '../src/notes.mjs';
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'opus-notes-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-notes-'));
 
 test('the summary marker lines are stripped from the written notes', () => {
   const reply = [

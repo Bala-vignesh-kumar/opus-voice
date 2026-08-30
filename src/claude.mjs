@@ -59,7 +59,7 @@ export class ClaudeSession extends EventEmitter {
     effort = 'medium',
     cwd = process.cwd(),
     permissionMode = 'bypassPermissions',
-    bin = process.env.OPUS_VOICE_CLAUDE_BIN,
+    bin = process.env.FALCON_CLAUDE_BIN,
   } = {}) {
     super();
     this.busy = false;
