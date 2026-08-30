@@ -1,4 +1,4 @@
-# opus voice — working notes for whoever picks this up
+# Falcon — working notes for whoever picks this up
 
 A macOS voice assistant. You talk, Claude Code answers out loud, in the project
 you point it at. `README.md` is for the person using it. This file is for
@@ -16,7 +16,7 @@ carries the rules.
 Five processes. Knowing which one owns what saves an hour:
 
 ```
-OpusVoice.app (swift/OpusVoiceApp.swift)   menu bar, window, headphone gesture
+Falcon.app (swift/FalconApp.swift)   menu bar, window, headphone gesture
   └── node src/index.mjs                    the orchestrator — all the policy
         ├── bin/voiceio (Swift)             microphone, recognizer, playback
         ├── claude (the CLI)                one long-lived streaming session
@@ -73,7 +73,7 @@ Changing one is a real decision, not a tidy-up — say so out loud first.
 
 The tests do not touch hardware: `test/stubs/` stands in for the Claude CLI,
 voiceio, Piper and Whisper, injected through constructor options
-(`bin`/`server`/`python`) or `OPUS_VOICE_*_BIN`. Follow that pattern rather
+(`bin`/`server`/`python`) or `FALCON_*_BIN`. Follow that pattern rather
 than reaching for real devices.
 
 **Tests passing is not evidence the app works.** Almost every fault found in
@@ -82,7 +82,7 @@ Bluetooth state. Drive the running app as well:
 
 ```bash
 # the live session's token
-K=$(python3 -c "import json;print(json.load(open('$HOME/.opus-voice/session.json'))['url'].split('k=')[1])")
+K=$(python3 -c "import json;print(json.load(open('$HOME/.falcon/session.json'))['url'].split('k=')[1])")
 
 curl -s -X POST "http://127.0.0.1:4477/command?k=$K" \
      -H 'content-type: application/json' -d '{"cmd":"mode","mode":"chat"}'
@@ -92,7 +92,7 @@ curl -sN --max-time 25 "http://127.0.0.1:4477/events?k=$K"   # watch it happen
 ```
 
 A typed turn exercises everything except the microphone. Expect
-`you` → `thinking` → `opus` → `speaking:true` → `speaking:false` in about 1.5s.
+`you` → `thinking` → `falcon` → `speaking:true` → `speaking:false` in about 1.5s.
 
 To see the window's own state without a browser extension, drive headless
 Chromium over CDP — Edge is installed. Use a **fresh tab per run**: a reused tab
@@ -105,8 +105,8 @@ leaves the previous page's `EventSource` retrying with a dead token, and its
 
 | | |
 |---|---|
-| App log | `~/.opus-voice/opus-voice.log` — **truncated on every node start** |
-| Session URL + token | `~/.opus-voice/session.json` |
+| App log | `~/.falcon/falcon.log` — **truncated on every node start** |
+| Session URL + token | `~/.falcon/session.json` |
 | Audio dumps | set `"dumpAudio": "/tmp/dump"`, then `/tmp/dump-N.wav` |
 | Bluetooth / AirPods | `/usr/bin/log show --last 5m --predicate 'eventMessage CONTAINS "PrNm AirPods"'` |
 | Every recognizer result | set `"trace": true` |

@@ -47,8 +47,8 @@
       "Bash(curl -s http://127.0.0.1:*)",
       "Bash(curl -sN http://127.0.0.1:*)",
 
-      "Bash(open -a \"Opus Voice\")",
-      "Bash(pkill -f \"Opus Voice.app\")",
+      "Bash(open -a \"Falcon\")",
+      "Bash(pkill -f \"Falcon.app\")",
       "Bash(pkill -f \"src/index.mjs\")",
       "Bash(pkill -f \"bin/voiceio\")",
       "Bash(pkill -f whisper_server)",
