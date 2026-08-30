@@ -47,6 +47,7 @@ if swiftc -O \
   -o bin/falcon-window \
   swift/FalconWindow.swift \
   swift/Environment.swift \
+  swift/MainMenu.swift \
   swift/WindowMain.swift \
   -framework AppKit \
   -framework WebKit; then
@@ -69,6 +70,7 @@ if swiftc -O \
   swift/SessionClient.swift \
   swift/StatusItem.swift \
   swift/FalconWindow.swift \
+  swift/MainMenu.swift \
   swift/FalconApp.swift \
   -framework AppKit \
   -framework WebKit \

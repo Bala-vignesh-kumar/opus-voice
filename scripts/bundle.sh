@@ -45,8 +45,6 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
-  <!-- Menu bar only: no dock icon, no window until one is asked for. -->
-  <key>LSUIElement</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Falcon listens to your microphone so you can talk to Claude hands-free.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Falcon transcribes your speech on-device so Claude can respond to what you say.</string>
   <!-- Recorded rather than discovered: a login-launched app has no PATH and no

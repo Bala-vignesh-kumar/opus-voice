@@ -18,9 +18,15 @@ final class FalconDelegate: NSObject, NSApplicationDelegate {
   private var launchProblem: LaunchProblem?
   private let window = FalconWindow()
   private var headphones: RemoteCommandWatcher?
+  /// Somebody opened the app and is waiting to see it, but node has not bound a
+  /// port yet. Held until there is a session to point a window at.
+  private var windowWanted = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    NSApp.setActivationPolicy(.accessory)   // menu bar only, no dock icon
+    // A regular app is the default now that LSUIElement is out of the plist,
+    // so there is no policy to set — only a menu bar to put up, which an
+    // accessory app never had.
+    NSApp.mainMenu = falconMainMenu(target: self)
 
     session = SessionClient(
       onChange: { [weak self] mode, status, statusChanged in
@@ -57,6 +63,34 @@ final class FalconDelegate: NSObject, NSApplicationDelegate {
       startHeadphoneWake(launch: launch)
       registerLoginItemOnce()
     }
+
+    // Who started this. The system did, for a login item — and a window nobody
+    // asked for landing on a fresh desktop every morning is exactly what
+    // starting at login must not mean.
+    let isDefaultLaunch = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true
+    // Wanted, not opened. At this instant the orchestrator has just cleared the
+    // stale session file and node is seconds away from binding a port, so there
+    // is nothing to point a window at yet — openWindow here shows "no session
+    // to show yet" on every single launch, and an NSAlert raised before the app
+    // has finished launching does not reliably appear at all, which is how a
+    // double-click ends in nothing whatsoever happening.
+    windowWanted = shouldOpenWindowAtLaunch(isDefaultLaunch: isDefaultLaunch)
+  }
+
+  /// Closing the window puts Falcon away; it does not stop it.
+  ///
+  /// The session keeps running and keeps listening, which is the whole point of
+  /// something you talk to. Quit is a deliberate act — cmd-Q, or the menu bar's
+  /// Quit — not a side effect of tidying your screen.
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    false
+  }
+
+  /// Clicking the dock icon with no window open opens one. Without this it does
+  /// nothing at all, which people reasonably report as the app being broken.
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+    if !hasVisibleWindows { openWindow() }
+    return true
   }
 
   func applicationWillTerminate(_ notification: Notification) {
@@ -103,10 +137,24 @@ final class FalconDelegate: NSObject, NSApplicationDelegate {
   // MARK: the session
 
   private func sessionChanged() {
-    statusItem.set(failure: launchProblem?.message ?? orchestrator?.problem)
+    let problem = launchProblem?.message ?? orchestrator?.problem
+    statusItem.set(failure: problem)
     // The stream carries the token, so it can only start once there is a
     // session to read it from.
     if let url = orchestrator?.sessionURL { session.follow(session: url) }
+
+    // The window somebody asked for at launch, now that there is something to
+    // put in it. If the session is never coming, say so instead — by then the
+    // app has finished launching and an alert will actually appear.
+    if windowWanted {
+      if let url = orchestrator?.sessionURL {
+        windowWanted = false
+        window.show(session: url)
+      } else if problem != nil {
+        windowWanted = false
+        openWindow()
+      }
+    }
     // And the window holds the same token. Reconnecting the menu's stream while
     // leaving the window on the old one is how an app ends up looking dead while
     // working perfectly: the page keeps its last frame, its library 403s, and
@@ -141,6 +189,19 @@ final class FalconDelegate: NSObject, NSApplicationDelegate {
     }
     window.show(session: url)
   }
+
+  @objc private func setModeFromMenu(_ sender: NSMenuItem) {
+    guard let command = sender.representedObject as? String else { return }
+    send(["cmd": "mode", "mode": command])
+  }
+
+  @objc private func interruptFromMenu() {
+    send(["cmd": "interrupt"])
+  }
+
+  @objc private func openProjectFromMenu() { openProject() }
+  @objc private func openLogFromMenu() { openLog() }
+  @objc private func toggleLoginFromMenu() { toggleLogin() }
 
   private func openProject() {
     let info = Bundle.main.infoDictionary

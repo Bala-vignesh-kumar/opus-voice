@@ -56,8 +56,9 @@ struct FalconWindowMain {
     let delegate = WindowOnly(session: session)
     app.delegate = delegate
     // A menu bar is what makes cmd-Q, cmd-W and copy/paste work at all in a
-    // bare AppKit process. Replaced with the real one in the next task.
-    app.mainMenu = nil
+    // bare AppKit process. No target, so it carries no session commands: this
+    // binary is a window and has nothing to command.
+    app.mainMenu = falconMainMenu()
     app.run()
   }
 }
