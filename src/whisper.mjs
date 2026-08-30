@@ -25,14 +25,16 @@ export function available() {
 }
 
 export class Whisper extends EventEmitter {
-  constructor({ model = 'base', timeoutMs = 3000, bin = PYTHON, server = SERVER, env = {} } = {}) {
+  constructor({ model = 'base', timeoutMs = 3000, vocabulary = [], bin = PYTHON, server = SERVER, env = {} } = {}) {
     super();
     this.timeoutMs = timeoutMs;
     this.pending = new Map();     // id -> resolve
     this.nextId = 1;
     this.dead = false;
 
-    this.child = spawn(bin, [server, model], {
+    // Passed at startup rather than per turn: the model loads once, and these
+    // are properties of the project you are talking about, not of one sentence.
+    this.child = spawn(bin, [server, model, ...vocabulary], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ...env },
     });

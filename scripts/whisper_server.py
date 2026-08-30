@@ -30,13 +30,20 @@ def emit(obj):
 
 def main():
     name = sys.argv[1] if len(sys.argv) > 1 else "base"
+    # Words this project uses that the model has never seen. Proper nouns are
+    # the whole problem: "Fineract" comes back as "in fact" or "Fingert",
+    # because a general model has no reason to know it and every reason to
+    # prefer a common phrase that sounds like it.
+    vocabulary = [w for w in sys.argv[2:] if w.strip()]
+    prompt = ("Glossary: " + ", ".join(vocabulary) + ".") if vocabulary else None
+    hotwords = " ".join(vocabulary) if vocabulary else None
     try:
         model = WhisperModel(name, device="cpu", compute_type="int8")
     except Exception as exc:  # noqa: BLE001 - report and exit; the parent falls back
         emit({"type": "error", "message": f"failed to load {name}: {exc}"})
         return 1
 
-    emit({"type": "ready"})
+    emit({"type": "ready", "vocabulary": len(vocabulary)})
 
     for line in sys.stdin:
         line = line.strip()
@@ -50,7 +57,16 @@ def main():
             return 0
         try:
             audio = np.frombuffer(base64.b64decode(message["pcm"]), dtype=np.float32)
-            segments, _ = model.transcribe(audio, language="en", beam_size=1)
+            # hotwords biases the decoder toward these words; initial_prompt
+            # gives it the same terms as context. Both, because which one bites
+            # depends on the model and neither costs anything measurable.
+            segments, _ = model.transcribe(
+                audio,
+                language="en",
+                beam_size=1,
+                initial_prompt=prompt,
+                hotwords=hotwords,
+            )
             text = " ".join(s.text for s in segments).strip()
             emit({"type": "text", "id": message.get("id"), "text": text})
         except Exception as exc:  # noqa: BLE001 - one bad turn must not end the process

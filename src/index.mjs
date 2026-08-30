@@ -64,6 +64,9 @@ if (config.stt === 'whisper') {
     whisper = new Whisper({
       model: config.whisperModel,
       timeoutMs: config.whisperTimeoutMs,
+      // The project's own name is the word most likely to be said and least
+      // likely to be known, so it is seeded automatically.
+      vocabulary: [...new Set([...(config.vocabulary || []), path.basename(workdir)])].filter(Boolean),
       bin: process.env.OPUS_VOICE_WHISPER_BIN,
       server: process.env.OPUS_VOICE_WHISPER_SERVER,
     });
