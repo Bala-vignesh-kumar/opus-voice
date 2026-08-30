@@ -8,8 +8,9 @@
 /**
  * @param {import('./ui.mjs').Ui} ui                   terminal renderer
  * @param {import('./bus.mjs').Conversation} conversation  state for the window
+ * @param {import('./history.mjs').History} [history]  the transcript on disk
  */
-export function makeView(ui, conversation) {
+export function makeView(ui, conversation, history = null) {
   return {
     banner(info) {
       ui.banner(info);
@@ -19,12 +20,14 @@ export function makeView(ui, conversation) {
     you(text) {
       ui.you(text);
       conversation.you(text);
+      history?.you(text);
     },
 
     /** A sentence handed to the synthesizer. `first` leads a new answer. */
     opus(text, first) {
       ui.opus(text, first);
       conversation.opus(text, first);
+      history?.opus(text, first);
     },
 
     note(text) {
@@ -44,9 +47,17 @@ export function makeView(ui, conversation) {
       conversation.ignored(text);
     },
 
+    /**
+     * Mode is also where a conversation begins and ends, so the transcript is
+     * cut here rather than by guessing at a gap between turns: going to sleep
+     * is the user saying this exchange is over, which is exactly the boundary
+     * a history list wants.
+     */
     mode(name) {
       ui.mode(name);
       conversation.setMode(name);
+      if (name === 'asleep') history?.end();
+      else history?.begin(name);
     },
 
     warn(text) {
@@ -91,6 +102,11 @@ export function makeView(ui, conversation) {
 
     speaking(on) {
       conversation.setSpeaking(on);
+    },
+
+    /** Loudness, for the window only — the terminal has nothing to do with it. */
+    level(source, rms) {
+      conversation.setLevel(source, rms);
     },
 
     clearLive() {

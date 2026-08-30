@@ -266,7 +266,18 @@ final class VoiceIO: NSObject {
     private var levelSum: Float = 0
     private var levelFrames = 0
     private var lastLevelEmit = Date()
+    private var outSum: Float = 0
+    private var outFrames = 0
+    private var lastOutEmit = Date()
     private var recogFailures = 0
+
+    /// How often loudness goes out, per direction.
+    ///
+    /// This was every 0.3s, which is plenty to prove the microphone is alive but
+    /// far too coarse to drive anything that moves — at three frames a second an
+    /// animation reads as a stutter, not as a voice. 30Hz is the slowest rate
+    /// that still looks continuous, and it is two short JSON lines per frame.
+    private static let levelInterval: TimeInterval = 1.0 / 30.0
 
     // MARK: Startup
 
@@ -322,7 +333,7 @@ final class VoiceIO: NSObject {
 
     /// Rebuilds the silent stream when the audio route changes.
     ///
-    /// Headphones connecting or disconnecting invalidates the player it was
+    /// Headphones connecting or disconnecting invalidates the engine it was
     /// started on, and a stream playing into a device that has gone is the same
     /// as no stream: the squeeze stops working, silently.
     private func watchRoute() {
@@ -400,6 +411,12 @@ final class VoiceIO: NSObject {
         // 48kHz output device.
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: hardware)
         engine.connect(player, to: engine.mainMixerNode, format: playFormat)
+
+        // Tapped once here rather than per utterance: the mixer outlives
+        // `engine.stop()`, so this survives standby the way the connections do.
+        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
+            self?.meterOut(buffer)
+        }
 
         // Voice processing turns the built-in mic into a 9-channel array feed
         // whose channels all carry the same processed signal, so take channel 0
@@ -509,12 +526,39 @@ final class VoiceIO: NSObject {
         levelFrames += count
 
         let now = Date()
-        guard now.timeIntervalSince(lastLevelEmit) >= 0.3, levelFrames > 0 else { return }
+        guard now.timeIntervalSince(lastLevelEmit) >= Self.levelInterval, levelFrames > 0 else { return }
         let rms = (levelSum / Float(levelFrames)).squareRoot()
         levelSum = 0
         levelFrames = 0
         lastLevelEmit = now
-        emit(["type": "level", "rms": Double(rms)])
+        emit(["type": "level", "source": "in", "rms": Double(rms)])
+    }
+
+    /// Reports output loudness, tapped at the mixer rather than where buffers
+    /// are scheduled.
+    ///
+    /// Piper hands over whole chunks ahead of playback, so metering at schedule
+    /// time would run a listener's animation ahead of the voice it is supposed
+    /// to be following. The mixer is where the audio actually leaves.
+    private func meterOut(_ buffer: AVAudioPCMBuffer) {
+        guard let samples = buffer.floatChannelData else { return }
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return }
+        var sum: Float = 0
+        for i in 0..<count { sum += samples[0][i] * samples[0][i] }
+        outSum += sum
+        outFrames += count
+
+        let now = Date()
+        guard now.timeIntervalSince(lastOutEmit) >= Self.levelInterval, outFrames > 0 else { return }
+        let rms = (outSum / Float(outFrames)).squareRoot()
+        outSum = 0
+        outFrames = 0
+        lastOutEmit = now
+        // Silence between utterances is still a reading: it is what returns the
+        // form to rest. Emitting it costs nothing and not emitting it leaves the
+        // animation stuck at whatever the last word was.
+        emit(["type": "level", "source": "out", "rms": Double(rms)])
     }
 
     private func setupRecognizer(_ done: @escaping () -> Void) {

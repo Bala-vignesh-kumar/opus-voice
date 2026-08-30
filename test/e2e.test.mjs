@@ -44,6 +44,9 @@ class App {
       // routing assertion into a timing one.
       '--awake-timeout-ms', '600000',
       '--dir', this.dir,
+      // Without this the run files its conversations under the real
+      // ~/.opus-voice/chats, alongside the ones somebody actually had.
+      '--chats-dir', path.join(this.dir, 'chats'),
       // Off unless a test asks for it. Otherwise every case would spawn a real
       // Whisper and load a model, to transcribe audio the stub never recorded.
       ...(whisperMode ? [] : ['--stt', 'apple']),
@@ -135,6 +138,31 @@ class App {
 
   /** Lets any in-flight routing settle before asserting a negative. */
   async settle(ms = 700) { await new Promise((r) => setTimeout(r, ms)); }
+
+  /**
+   * Waits for the Nth occurrence of some text.
+   *
+   * expect() searches output that has been accumulating since launch, so
+   * waiting for a line that has already appeared once returns instantly — which
+   * silently turns "do this three times" into "do it all at once".
+   */
+  async expectCount(needle, n, timeout = 8000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      if (this.out.split(needle).length - 1 >= n) return true;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error(`timed out waiting for ${JSON.stringify(needle)} x${n}\n--- output ---\n${this.out}`);
+  }
+
+  /** The exit code, for the cases where quitting is the correct behaviour. */
+  async exited(timeout = 8000) {
+    if (this.child.exitCode !== null) return this.child.exitCode;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`it never exited\n--- output ---\n${this.out}`)), timeout);
+      this.child.once('exit', (code) => { clearTimeout(timer); resolve(code); });
+    });
+  }
 
   stop() { this.child.kill('SIGKILL'); }
 }
@@ -621,5 +649,43 @@ test('a whisper failure falls back to the system recognizer', async () => {
   try {
     app.speak('what fights are in this project');
     await app.asked_('what fights are in this project');
+  } finally { app.stop(); }
+});
+
+// A five-hour rate limit ends the CLI process mid-turn. That used to end the
+// whole app with it: the answer never arrived and the machine you were talking
+// to disappeared, which on a screen that starts at login is the worst possible
+// way to fail.
+test('a claude session that dies mid-turn is replaced, not fatal', async () => {
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+
+    app.type('make it die');
+    await app.expect('starting a new session');
+    // The reason is on screen rather than discarded, which is what made this
+    // undiagnosable in the first place.
+    await app.expect('5-hour limit reached');
+
+    // Still alive, still answering: the replacement session takes the next turn.
+    app.type('why is my build slow');
+    await app.expect('This is the stub answer.');
+  } finally { app.stop(); }
+});
+
+test('a claude session that dies over and over does end the app', async () => {
+  const app = new App();
+  try {
+    await app.expect('opus voice');
+    app.type('make it die');
+    await app.expectCount('starting a new session', 1);
+    app.type('make it die');
+    await app.expectCount('starting a new session', 2);
+    app.type('make it die');
+    // Bad flags or missing auth fail identically every time; respawning forever
+    // would just hide it.
+    await app.expect('claude exited');
+    const code = await app.exited();
+    assert.equal(code, 1);
   } finally { app.stop(); }
 });

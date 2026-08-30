@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --text:#e7e8ea; --soft:#9aa0aa; --faint:#5d636e;
+      --line:#22252c; --you:#7fb3ff; --opus:#8fd9a8;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 92% at 50% 26%, #12151d 0%, #0d0e11 58%, #090a0d 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;}
+
+    /* Speaking pushes the form up and hands the screen to the words: while it
+       is talking, the thing you want is the sentence, not the animation. */
+    .field{position:relative;width:250px;height:250px;display:grid;place-items:center;
+      margin-top:-24px;}
+    /* The field spins fast and flickers quickly here — it is reacting to its own
+       words in real time, so it reads as busier than the idle or listening states. */
+    .swarm{width:250px;height:250px;animation:turn 26s linear infinite;}
+    @keyframes turn{to{transform:rotate(360deg)}}
+    .swarm circle.d{animation:flick 1.1s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.20}50%{opacity:1}}
+    .core{animation:core 5.4s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.45}50%{opacity:.85}}
+
+    .status{position:absolute;top:34px;left:50%;transform:translateX(-50%);
+      padding:3px 11px;border:1px solid #2b3a52;border-radius:999px;
+      color:var(--you);font-size:12px;letter-spacing:0.02em;}
+
+    /* Sentences arrive one at a time from the synthesizer, so the screen shows
+       that: what has been said dims, what is being said is at full weight. */
+    .answer{max-width:1000px;margin:38px 0 0;text-align:center;
+      display:flex;flex-direction:column;gap:12px;}
+    .answer p{margin:0;font-size:31px;line-height:1.5;font-weight:300;
+      letter-spacing:-0.016em;}
+    .answer .said{color:var(--faint);}
+    .answer .now{color:var(--text);}
+
+    .hint{position:absolute;left:0;right:0;bottom:38px;text-align:center;
+      font-size:12.5px;color:var(--faint);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="status">speaking</div>
+
+  <div class="field">
+    <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+      <circle class="core" cx="130" cy="130" r="34" fill="rgba(127,179,255,0.09)"></circle>
+      <circle class="core" cx="130" cy="130" r="34" stroke="rgba(127,179,255,0.20)" stroke-width="1"></circle>
+      <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+        <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(127,179,255,0.85)"
+          opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+      </sc-for>
+    </svg>
+  </div>
+
+  <div class="answer">
+    <p class="said">It's the cache — it's rebuilding from scratch every run.</p>
+    <p class="now">That's most of your build time, and it's a two-line fix.</p>
+  </div>
+
+  <div class="hint">just start talking to cut it off</div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 31417;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.62 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.58).toFixed(2),
+        delay: (rnd() * 1.1).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>

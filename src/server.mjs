@@ -15,6 +15,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { write as writeSession, clear as clearSession, DEFAULT_FILE as SESSION_FILE } from './session.mjs';
+import { list as listChats, read as readChat, DIR as CHATS_DIR } from './history.mjs';
+import { listNotes, readNote } from './notes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UI = path.join(ROOT, 'ui');
@@ -33,10 +35,19 @@ const TYPES = {
  * @param {(command: object) => void} onCommand  what the window asks for
  */
 export class UiServer {
-  constructor(conversation, onCommand, { port = 4477, sessionFile = SESSION_FILE } = {}) {
+  constructor(conversation, onCommand, {
+    port = 4477,
+    sessionFile = SESSION_FILE,
+    workdir = process.cwd(),
+    chatsDir = CHATS_DIR,
+  } = {}) {
+    this.chatsDir = chatsDir;
     this.conversation = conversation;
     this.onCommand = onCommand;
     this.wanted = port;
+    // Notes live with the project; chats live under the home directory. Only
+    // the first of those needs to know where the project is.
+    this.workdir = workdir;
     // null turns publishing off, so a test run never writes over the session
     // the developer is actually using.
     this.sessionFile = sessionFile;
@@ -94,6 +105,14 @@ export class UiServer {
       return this.#command(req, res);
     }
 
+    // The library is read on demand rather than streamed: it is history, it does
+    // not change while you are looking at it, and pushing every past
+    // conversation down the event stream at startup would be absurd.
+    if (url.pathname.startsWith('/library/')) {
+      if (!this.#authorized(req, url)) return this.#deny(req, res);
+      return this.#library(url, req, res);
+    }
+
     return this.#static(url.pathname, req, res);
   }
 
@@ -138,6 +157,24 @@ export class UiServer {
       clearInterval(beat);
       this.clients.delete(res);
     });
+  }
+
+  #library(url, req, res) {
+    req.resume();
+    const id = url.searchParams.get('id') ?? '';
+    let body = null;
+
+    switch (url.pathname) {
+      case '/library/chats': body = listChats({ dir: this.chatsDir }); break;
+      case '/library/chat': body = readChat(id, { dir: this.chatsDir }); break;
+      case '/library/notes': body = listNotes({ dir: this.workdir }); break;
+      case '/library/note': body = readNote(id, { dir: this.workdir }); break;
+      default: break;
+    }
+
+    if (body === null) return res.writeHead(404).end('not found');
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(body));
   }
 
   #command(req, res) {

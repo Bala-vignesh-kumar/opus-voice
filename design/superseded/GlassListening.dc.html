@@ -1,0 +1,271 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#080b0e; --line:#22252c; --text:#e7e8ea; --soft:#9aa0aa; --faint:#5d636e;
+      --you:#7fb3ff; --opus:#8fd9a8; --amber:#e0b473; --edge:#333842;
+      --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+      --cut:16px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(110% 90% at 50% 44%, #0e161a 0%, #090d11 55%, #06080a 100%);}
+
+    .bloom{position:absolute;border-radius:50%;filter:blur(90px);pointer-events:none;}
+    /* Brighter and larger than the idle screen's: the room is being listened to,
+       and the whole backdrop should feel it, not just the sphere. */
+    .bloom.a{width:900px;height:900px;left:50%;top:46%;margin:-450px 0 0 -450px;
+      background:rgba(143,217,168,.16);}
+    .bloom.b{width:420px;height:420px;left:2%;top:66%;background:rgba(143,217,168,.06);}
+    .bloom.c{width:420px;height:420px;right:2%;top:10%;background:rgba(127,179,255,.045);}
+
+    .grid{position:absolute;inset:0;pointer-events:none;
+      background-image:linear-gradient(rgba(143,217,168,.05) 1px,transparent 1px),
+                       linear-gradient(90deg,rgba(143,217,168,.05) 1px,transparent 1px);
+      background-size:64px 64px;
+      -webkit-mask-image:radial-gradient(78% 68% at 50% 50%,#000 0%,transparent 80%);
+      mask-image:radial-gradient(78% 68% at 50% 50%,#000 0%,transparent 80%);}
+
+    .panel{position:relative;padding:1px;
+      clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut));
+      background:linear-gradient(155deg,rgba(143,217,168,.30),rgba(143,217,168,.10) 45%,rgba(255,255,255,.05));
+      filter:drop-shadow(0 20px 44px rgba(0,0,0,.55));}
+    .panel > .in{position:relative;
+      clip-path:polygon(calc(var(--cut) - 1px) 0,100% 0,100% calc(100% - var(--cut) + 1px),calc(100% - var(--cut) + 1px) 100%,0 100%,0 calc(var(--cut) - 1px));
+      background:linear-gradient(155deg,rgba(255,255,255,.06),rgba(255,255,255,.015) 38%,rgba(255,255,255,0) 70%),rgba(11,16,20,.60);
+      -webkit-backdrop-filter:blur(22px) saturate(1.3);
+      backdrop-filter:blur(22px) saturate(1.3);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.075);
+      padding:13px 15px 15px;display:flex;flex-direction:column;gap:11px;}
+
+    .tick{position:absolute;width:9px;height:9px;pointer-events:none;z-index:2;}
+    .tick.tr{top:4px;right:4px;border-top:1px solid rgba(143,217,168,.55);border-right:1px solid rgba(143,217,168,.55);}
+    .tick.bl{bottom:4px;left:4px;border-bottom:1px solid rgba(143,217,168,.55);border-left:1px solid rgba(143,217,168,.55);}
+
+    .ph{display:flex;align-items:center;gap:8px;}
+    .dot{width:5px;height:5px;border-radius:50%;background:var(--opus);flex:none;
+      box-shadow:0 0 8px rgba(143,217,168,.9);animation:blip 1.4s ease-in-out infinite;}
+    @keyframes blip{0%,100%{opacity:.45}50%{opacity:1}}
+    .dot.blue{background:var(--you);box-shadow:0 0 8px rgba(127,179,255,.9);}
+    .pt{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.15em;
+      text-transform:uppercase;color:var(--soft);}
+    .chip{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;
+      color:var(--faint);border:1px solid rgba(143,217,168,.20);padding:2px 6px;
+      clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);}
+
+    .top{position:absolute;top:22px;left:32px;right:32px;display:flex;
+      align-items:center;justify-content:space-between;}
+    .brand{--cut:10px;}
+    .brand .in{flex-direction:row;align-items:center;gap:9px;padding:7px 14px;}
+    .brand .name{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+      text-transform:uppercase;color:var(--soft);}
+    .brand .sep{color:var(--faint);opacity:.5;}
+    .state{--cut:10px;}
+    .state .in{flex-direction:row;align-items:center;gap:9px;padding:7px 14px;}
+    .state .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+      text-transform:uppercase;color:var(--opus);}
+
+    /* --------------------------------------------------------- level meter */
+
+    /* The one panel here that is not decoration: VoiceIO already emits an rms
+       level per buffer, so this is the only reading on screen that is real. */
+    .meter{position:absolute;left:32px;top:96px;width:250px;}
+    .bars{display:flex;align-items:flex-end;gap:3px;height:56px;}
+    .bars i{flex:1;display:block;background:linear-gradient(to top,rgba(143,217,168,.22),rgba(143,217,168,.95));
+      animation:jump 1.1s ease-in-out infinite;transform-origin:bottom;}
+    @keyframes jump{0%,100%{transform:scaleY(.28)}50%{transform:scaleY(1)}}
+    .scale{display:flex;justify-content:space-between;font-family:var(--mono);
+      font-size:9px;letter-spacing:.12em;color:var(--faint);}
+
+    .heard{position:absolute;right:32px;top:96px;width:290px;}
+    .feed{display:flex;flex-direction:column;gap:10px;}
+    .f{display:flex;flex-direction:column;gap:3px;}
+    .f .who{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+      color:var(--faint);}
+    .f.you .who{color:var(--you);}
+    .f.opus .who{color:var(--opus);}
+    .f .tx{font-size:12.5px;line-height:1.5;color:var(--soft);}
+
+    /* ------------------------------------------------------------- centre */
+
+    .stage{position:absolute;inset:0;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:0;pointer-events:none;}
+
+    .orb{position:relative;width:470px;height:470px;display:grid;place-items:center;}
+    .orbit{position:absolute;inset:0;}
+    .orbit.a{animation:spin 34s linear infinite;}
+    .orbit.b{animation:spin 60s linear infinite reverse;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .swarm{width:390px;height:390px;animation:spin 34s linear infinite;}
+    .swarm circle.d{animation:flick 2.2s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.18}50%{opacity:1}}
+    .core{animation:core 2.1s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.5}50%{opacity:1}}
+
+    .interim{margin-top:30px;width:900px;--cut:14px;pointer-events:auto;}
+    .interim .in{align-items:center;text-align:center;gap:8px;padding:20px 26px 24px;}
+    .interim .cap{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;
+      text-transform:uppercase;color:var(--faint);}
+    /* Still italic, still provisional — the glass frame must not make a guess
+       look like a finished turn. */
+    .interim .tx{font-size:30px;line-height:1.4;font-weight:300;font-style:italic;
+      letter-spacing:-0.015em;color:var(--text);}
+    .caret{display:inline-block;width:2px;height:0.9em;margin-left:6px;background:var(--opus);
+      vertical-align:-0.08em;animation:blink 1.05s steps(1) infinite;}
+    @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+    .foot{position:absolute;left:0;right:0;bottom:28px;text-align:center;
+      font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+      color:var(--faint);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="bloom a"></div>
+  <div class="bloom b"></div>
+  <div class="bloom c"></div>
+  <div class="grid"></div>
+
+  <div class="top">
+    <div class="panel brand">
+      <span class="tick tr"></span>
+      <span class="tick bl"></span>
+      <div class="in">
+        <span class="dot"></span>
+        <span class="name">opus voice</span>
+        <span class="sep">//</span>
+        <span class="name">awake</span>
+      </div>
+    </div>
+    <div class="panel state">
+      <span class="tick tr"></span>
+      <span class="tick bl"></span>
+      <div class="in">
+        <span class="dot"></span>
+        <span class="t">listening</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel meter">
+    <span class="tick tr"></span>
+    <span class="tick bl"></span>
+    <div class="in">
+      <div class="ph">
+        <span class="dot"></span>
+        <span class="pt">input level</span>
+        <span class="chip">rms</span>
+      </div>
+      <div class="bars">
+        <sc-for list="{{bars}}" as="b" hint-placeholder-count="18">
+          <i style="animation-delay: {{b.delay}}s; opacity: {{b.o}}"></i>
+        </sc-for>
+      </div>
+      <div class="scale">
+        <span>−48 db</span>
+        <span>−12</span>
+        <span>0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel heard">
+    <span class="tick tr"></span>
+    <span class="tick bl"></span>
+    <div class="in">
+      <div class="ph">
+        <span class="dot blue"></span>
+        <span class="pt">this turn</span>
+        <span class="chip">not saved</span>
+      </div>
+      <div class="feed">
+        <div class="f you">
+          <span class="who">you</span>
+          <span class="tx">hey falcon, why is the Fineract build taking so long?</span>
+        </div>
+        <div class="f opus">
+          <span class="who">opus</span>
+          <span class="tx">It's the cache — it's rebuilding from scratch every run.</span>
+        </div>
+        <div class="f you">
+          <span class="who">you</span>
+          <span class="tx">can you show me where that's configured</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="orb">
+      <svg class="orbit a" viewBox="0 0 470 470" fill="none" aria-hidden="true">
+        <circle cx="235" cy="235" r="226" stroke="rgba(143,217,168,0.20)" stroke-width="1"
+          stroke-dasharray="2 9"></circle>
+        <circle cx="235" cy="235" r="226" stroke="rgba(143,217,168,0.50)" stroke-width="1"
+          stroke-dasharray="60 1360" stroke-linecap="round"></circle>
+      </svg>
+      <svg class="orbit b" viewBox="0 0 470 470" fill="none" aria-hidden="true">
+        <circle cx="235" cy="235" r="196" stroke="rgba(143,217,168,0.14)" stroke-width="1"
+          stroke-dasharray="1 7"></circle>
+      </svg>
+      <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+        <circle class="core" cx="130" cy="130" r="34" fill="rgba(143,217,168,0.14)"></circle>
+        <circle class="core" cx="130" cy="130" r="34" stroke="rgba(143,217,168,0.30)" stroke-width="1"></circle>
+        <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+          <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(143,217,168,0.9)"
+            opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+        </sc-for>
+      </svg>
+    </div>
+
+    <div class="panel interim">
+      <span class="tick tr"></span>
+      <span class="tick bl"></span>
+      <div class="in">
+        <div class="cap">hearing</div>
+        <div class="tx">can you show me where that's configured<span class="caret"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">falls asleep after 90 seconds of silence · just start talking to cut it off</div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 55021;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.8 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.58).toFixed(2),
+        delay: (rnd() * 2.2).toFixed(2),
+      });
+    }
+    const bars = [];
+    for (let i = 0; i < 22; i++) {
+      bars.push({ delay: (rnd() * 1.1).toFixed(2), o: (0.45 + rnd() * 0.55).toFixed(2) });
+    }
+    return { dots, bars };
+  }
+}
+</script>
+</body>
+</html>

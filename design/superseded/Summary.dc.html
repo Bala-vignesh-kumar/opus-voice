@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --raised:#15171c; --line:#22252c; --text:#e7e8ea; --soft:#9aa0aa;
+      --faint:#5d636e; --you:#7fb3ff; --opus:#8fd9a8; --amber:#e0b473;
+      --ring-live:#2c4436; --sunken:#0b0c0f; --hover:#1b1e24; --edge:#333842;
+      --radius:12px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 92% at 50% 34%, #13151b 0%, #0d0e11 58%, #090a0d 100%);
+      display:flex;flex-direction:column;align-items:center;}
+
+    .back{position:absolute;top:34px;left:44px;display:flex;align-items:center;gap:7px;
+      font-size:13px;color:var(--faint);}
+    .back svg{display:block;}
+
+    .pill{position:absolute;top:32px;left:50%;transform:translateX(-50%);
+      padding:3px 11px;border:1px solid var(--line);border-radius:999px;
+      font-size:12px;letter-spacing:.02em;color:var(--soft);}
+
+    /* This is the reading view, the counterpart to the live ambient screens,
+       so it trades their motion for a fixed, scannable column: everything
+       sits in one 820px measure instead of centring itself on the canvas. */
+    .col{width:820px;margin-top:112px;display:flex;flex-direction:column;gap:34px;}
+
+    .head{display:flex;flex-direction:column;gap:10px;}
+    .title{font-size:38px;font-weight:200;letter-spacing:-.022em;color:var(--text);}
+    .meta{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums;}
+    .meta span.sep{margin:0 8px;}
+
+    .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);}
+
+    .sec{display:flex;flex-direction:column;gap:12px;}
+    .summary p{margin:0;font-size:19px;line-height:1.7;color:var(--text);font-weight:300;}
+
+    .list{display:flex;flex-direction:column;gap:9px;list-style:none;margin:0;padding:0;}
+    .list li{display:flex;align-items:flex-start;gap:10px;font-size:15px;color:var(--soft);}
+    .list li::before{content:"";flex:none;width:5px;height:5px;border-radius:50%;
+      background:var(--faint);margin-top:9px;}
+
+    .todo-pill{flex:none;padding:1px 8px;border-radius:999px;background:rgba(143,217,168,.13);
+      border:1px solid rgba(143,217,168,.32);color:var(--opus);font-size:11px;
+      letter-spacing:.01em;margin-left:6px;}
+
+    .refs{display:flex;flex-direction:column;gap:10px;}
+    .ref{display:flex;align-items:baseline;gap:9px;font-size:14.5px;}
+    .ref .num{color:var(--faint);font-variant-numeric:tabular-nums;}
+    .ref a{font-weight:500;}
+    .ref .rtitle{color:var(--soft);}
+
+    /* Ghost buttons stay flat here on purpose - this screen is for reading
+       back, not for a new decision, so nothing should compete with the text. */
+    .foot{display:flex;gap:10px;margin-top:8px;}
+    .foot button{background:transparent;border:1px solid var(--line);color:var(--soft);
+      padding:6px 14px;border-radius:999px;font-size:13px;font-family:inherit;cursor:pointer;}
+    .foot button:hover{border-color:var(--edge);color:var(--text);background:var(--hover);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="back">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    <span>older chats</span>
+  </div>
+
+  <div class="pill">summary</div>
+
+  <div class="col">
+    <div class="head">
+      <div class="title">Fineract sync timeouts, and the Piper voice swap</div>
+      <div class="meta">Aug 28, 2026<span class="sep">·</span>9:41 PM<span class="sep">·</span>14 min<span class="sep">·</span>26 turns</div>
+    </div>
+
+    <div class="sec summary">
+      <div class="label">Summary</div>
+      <p>You were chasing a flaky sync between Nakshatra Residence and the Apache Fineract instance — client transactions were occasionally landing twice on retry. We traced it to the loan repayment endpoint not being idempotent under Fineract's own retry policy, not a bug in your code. Along the way you asked opus voice to switch its neural voice, so we moved Piper over to the hfc_female-medium checkpoint and confirmed Whisper's small model still transcribed cleanly at the new sample rate before wrapping up.</p>
+    </div>
+
+    <div class="sec">
+      <div class="label">Decisions</div>
+      <ul class="list">
+        <li>Wrap the loan repayment call in an idempotency key stored against the Nakshatra Residence tenant, rather than patching retries in Fineract itself.</li>
+        <li>Keep Piper on <em>en_US-hfc_female-medium</em> — the lighter checkpoint didn't hold up on longer sentences.</li>
+        <li>Leave Whisper on the small model; the accuracy difference against medium wasn't worth the extra load time.</li>
+      </ul>
+    </div>
+
+    <div class="sec">
+      <div class="label">Action items</div>
+      <ul class="list">
+        <li>Add the idempotency key column to the repayments table and thread it through the Fineract client. <span class="todo-pill">to-do 1</span></li>
+        <li>Write a regression test that fires the same repayment twice and asserts a single ledger entry. <span class="todo-pill">to-do 2</span></li>
+        <li>Sanity-check the new Piper voice against the wake-phrase latency budget once the fix ships.</li>
+      </ul>
+    </div>
+
+    <div class="sec">
+      <div class="label">References</div>
+      <div class="refs">
+        <div class="ref"><span class="num">#412</span><a href="#">apache/fineract — repeated repayment on client retry</a></div>
+        <div class="ref"><span class="num">#57</span><a href="#">opus-voice — swap default Piper voice to hfc_female-medium</a></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <button type="button">Read it aloud</button>
+      <button type="button">Open the note</button>
+      <button type="button">Continue this</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

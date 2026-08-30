@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --text:#e7e8ea; --soft:#9aa0aa; --faint:#5d636e;
+      --line:#22252c; --amber:#e0b473; --ring-note:#4a3d28; --you:#7fb3ff;
+      --raised:#15171c; --radius:12px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 92% at 50% 40%, #17151a 0%, #0d0e11 58%, #090a0d 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;}
+
+    /* Thinking turns the motion inward: nothing expands outward, because
+       nothing is being heard. The fast, tight rotation reads as "working",
+       not as "listening" — there's no outward swell, just urgency. */
+    .field{position:relative;width:320px;height:320px;display:grid;place-items:center;}
+    .swarm{width:320px;height:320px;animation:turn 14s linear infinite;}
+    @keyframes turn{to{transform:rotate(360deg)}}
+    .swarm circle.d{animation:flick 1.6s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.20}50%{opacity:1}}
+    .core{animation:core 5.4s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.45}50%{opacity:.85}}
+
+    .status{position:absolute;top:34px;left:50%;transform:translateX(-50%);
+      padding:3px 11px;border:1px solid var(--ring-note);border-radius:999px;
+      color:var(--amber);font-size:12px;letter-spacing:0.02em;}
+
+    .said{display:flex;flex-direction:column;align-items:center;gap:7px;margin-bottom:8px;}
+    .who{font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--you);}
+    .said .text{font-size:22px;font-weight:300;letter-spacing:-0.012em;color:var(--soft);
+      max-width:900px;text-align:center;}
+
+    .work{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:26px;}
+    .spin{font-size:16px;color:var(--amber);letter-spacing:-0.005em;}
+    .tools{display:flex;flex-direction:column;gap:4px;align-items:center;
+      font-size:13.5px;color:var(--faint);}
+    .tools div::before{content:"⟢ ";}
+    .tools .now{color:var(--soft);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="status">thinking</div>
+
+  <div class="said">
+    <div class="who">you</div>
+    <div class="text">why is the Fineract build taking so long?</div>
+  </div>
+
+  <div class="field">
+    <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+      <circle class="core" cx="130" cy="130" r="34" fill="rgba(224,180,115,0.09)"></circle>
+      <circle class="core" cx="130" cy="130" r="34" stroke="rgba(224,180,115,0.20)" stroke-width="1"></circle>
+      <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+        <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(224,180,115,0.85)"
+          opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+      </sc-for>
+    </svg>
+  </div>
+
+  <div class="work">
+    <div class="spin">thinking…</div>
+    <div class="tools">
+      <div>read pom.xml</div>
+      <div class="now">bash mvn -o dependency:tree</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 77313;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.30 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.58).toFixed(2),
+        delay: (rnd() * 1.6).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>

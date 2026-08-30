@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --raised:#15171c; --line:#22252c; --text:#e7e8ea;
+      --soft:#9aa0aa; --faint:#5d636e; --you:#7fb3ff; --opus:#8fd9a8;
+      --amber:#e0b473; --sunken:#0b0c0f; --hover:#1b1e24; --edge:#333842;
+      --radius:12px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 92% at 50% 40%, #13151b 0%, #0d0e11 58%, #090a0d 100%);
+      display:flex;flex-direction:column;padding:64px 88px 56px;box-sizing:border-box;}
+
+    .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);}
+
+    .head{flex:none;display:flex;flex-direction:column;gap:6px;}
+    .date{font-size:46px;font-weight:200;letter-spacing:-0.022em;color:var(--text);}
+    .date b{font-weight:400;color:var(--soft);}
+
+    /* Live pill breathes instead of blinking: a status meant to be glanced at across
+       a room reads better as a slow tide than a hard flash. */
+    .pill{padding:3px 11px;border:1px solid var(--line);border-radius:999px;
+      font-size:12px;letter-spacing:.02em;color:var(--soft);}
+    .pill.live{border-color:#2c4436;color:var(--opus);animation:breathe 4.5s ease-in-out infinite;}
+    @keyframes breathe{0%,100%{opacity:.7}50%{opacity:1}}
+
+    /* Body is an asymmetric grid, not a row of matching cards — the day did not
+       happen in four equal-sized boxes, so the layout should not pretend it did. */
+    .grid{flex:1;min-height:0;margin-top:52px;display:grid;
+      grid-template-columns:1.35fr 1fr;grid-template-rows:auto auto;
+      column-gap:56px;row-gap:40px;}
+
+    .talked{grid-column:1;grid-row:1;}
+    .notes{grid-column:2;grid-row:1 / span 2;border-left:1px solid var(--line);padding-left:40px;}
+    .todos{grid-column:1;grid-row:2;}
+
+    .sec-head{display:flex;align-items:baseline;gap:10px;margin-bottom:18px;}
+    .sec-title{font-size:13.5px;color:var(--soft);font-weight:600;letter-spacing:.01em;}
+
+    .topics{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:20px;}
+    .topic{display:flex;gap:16px;align-items:baseline;}
+    .topic time{flex:none;width:56px;font-size:12.5px;color:var(--faint);
+      font-variant-numeric:tabular-nums;}
+    .topic .what{font-size:17px;font-weight:300;letter-spacing:-0.008em;color:var(--text);}
+    .topic .ctx{display:block;margin-top:3px;font-size:13.5px;color:var(--soft);}
+    .topic .ctx a{color:var(--you);}
+
+    .notelist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:16px;}
+    .note{display:flex;flex-direction:column;gap:2px;}
+    .note .title{font-size:15.5px;color:var(--text);}
+    .note .title::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;
+      background:var(--amber);margin-right:9px;vertical-align:middle;}
+    .note .path{font-size:12.5px;color:var(--faint);margin-left:15px;}
+
+    .tasklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;
+      max-width:620px;}
+    .task{display:flex;align-items:baseline;gap:10px;font-size:13.5px;}
+    .task .mark{flex:none;width:14px;color:var(--faint);font-variant-numeric:tabular-nums;}
+    .task.done .mark{color:var(--opus);}
+    .task.done .what{color:var(--faint);text-decoration:line-through;}
+    .task .what{color:var(--text);}
+    .task .when{margin-left:auto;flex:none;color:var(--faint);font-size:12px;}
+
+    .foot{flex:none;margin-top:40px;font-size:12.5px;color:var(--faint);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="head">
+    <span class="label">Today</span>
+    <div class="date">Sunday <b>&middot;</b> August 30</div>
+  </div>
+
+  <div class="grid">
+    <section class="talked">
+      <div class="sec-head">
+        <span class="sec-title">Discussed today</span>
+      </div>
+      <ul class="topics">
+        <li class="topic">
+          <time>9:14a</time>
+          <div>
+            <div class="what">Why the Fineract loan schedule job started double-posting interest</div>
+            <span class="ctx">traced to a re-run on retry &mdash; not a rounding bug after all</span>
+          </div>
+        </li>
+        <li class="topic">
+          <time>2:40p</time>
+          <div>
+            <div class="what">Whisper picking up the dishwasher as speech during wake-word listening</div>
+            <span class="ctx">raising the endpoint threshold before touching the model</span>
+          </div>
+        </li>
+        <li class="topic">
+          <time>4:05p</time>
+          <div>
+            <div class="what">Nakshatra Residence unit handover checklist &mdash; who signs off last</div>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <aside class="notes">
+      <div class="sec-head">
+        <span class="sec-title">Notes written</span>
+      </div>
+      <ul class="notelist">
+        <li class="note">
+          <span class="title">Fineract interest double-post</span>
+          <span class="path">notes/2026-08-30/fineract-interest-double-post.md</span>
+        </li>
+        <li class="note">
+          <span class="title">Wake-word false triggers</span>
+          <span class="path">notes/2026-08-30/wake-word-false-triggers.md</span>
+        </li>
+        <li class="note">
+          <span class="title">Handover sign-off order</span>
+          <span class="path">notes/2026-08-30/handover-sign-off-order.md</span>
+        </li>
+      </ul>
+    </aside>
+
+    <section class="todos">
+      <div class="sec-head">
+        <span class="sec-title">To-dos moved today</span>
+      </div>
+      <ul class="tasklist">
+        <li class="task done">
+          <span class="mark">&#10003;</span>
+          <span class="what">Cache the Maven repo between Fineract builds</span>
+          <span class="when">9:32a</span>
+        </li>
+        <li class="task">
+          <span class="mark">+</span>
+          <span class="what">Raise Whisper endpoint threshold to 3.4s and re-test barge-in</span>
+          <span class="when">2:52p</span>
+        </li>
+        <li class="task">
+          <span class="mark">+</span>
+          <span class="what">Confirm who owns the Nakshatra handover sign-off</span>
+          <span class="when">4:08p</span>
+        </li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="foot">opus voice &middot; piper neural &middot; transcriber on-device en-IN</div>
+</div>
+</x-dc>
+</body>
+</html>

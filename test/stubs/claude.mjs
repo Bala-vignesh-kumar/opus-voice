@@ -38,6 +38,13 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     fs.appendFileSync(process.env.STUB_CLAUDE_LOG, `${JSON.stringify(asked)}\n`);
   }
 
+  // Dies mid-turn, the way the real CLI does when a rate limit runs out: the
+  // question is accepted, nothing is answered, and the process is gone.
+  if (asked.includes('make it die')) {
+    process.stderr.write('5-hour limit reached\n');
+    process.exit(1);
+  }
+
   const reply = asked.includes('Transcript:') ? SUMMARY : REPLY;
   emit({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } } });
   emit({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: reply } } });

@@ -1,0 +1,192 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --raised:#15171c; --line:#22252c; --text:#e7e8ea;
+      --soft:#9aa0aa; --faint:#5d636e; --you:#7fb3ff; --opus:#8fd9a8;
+      --amber:#e0b473; --ring-note:#4a3d28; --sunken:#0b0c0f; --hover:#1b1e24;
+      --edge:#333842;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 100% at 50% 46%, #11151a 0%, #0d0e11 60%, #090a0d 100%);}
+
+    /* Byte-for-byte the same block as the hub. Expanding a section must not
+       move, resize or recolour the form — the whole point of the screen is
+       that the one live thing on it stays put while the paper changes. */
+    .centre{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:470px;height:470px;display:grid;place-items:center;pointer-events:none;}
+    .swarm{width:470px;height:470px;animation:turn 62s linear infinite;}
+    @keyframes turn{to{transform:rotate(360deg)}}
+    .swarm circle.d{animation:flick 4.2s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.20}50%{opacity:1}}
+    .core{animation:core 5.4s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.45}50%{opacity:.8}}
+
+    /* The corners become one row of tabs, so moving between sections costs a
+       click and never a screen. */
+    .nav{position:absolute;top:38px;left:0;right:0;display:flex;justify-content:center;
+      gap:30px;font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;}
+    .tab{color:var(--faint);padding-bottom:5px;border-bottom:1px solid transparent;cursor:pointer;}
+    .tab:hover{color:var(--soft);}
+    .tab.on{color:var(--text);border-bottom-color:var(--opus);}
+
+    /* The centre column is empty on purpose and exactly as wide as the form. */
+    .cols{position:absolute;inset:0;display:grid;
+      grid-template-columns:1fr 470px 1fr;gap:0 46px;
+      padding:112px 56px 62px;}
+    .left{grid-column:1;display:flex;flex-direction:column;gap:20px;min-height:0;}
+    .right{grid-column:3;display:flex;flex-direction:column;gap:16px;min-height:0;}
+
+    .label{font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);
+      display:flex;align-items:center;gap:8px;}
+    .count{color:var(--faint);font-variant-numeric:tabular-nums;font-weight:400;
+      text-transform:none;letter-spacing:normal;}
+
+    .group{display:flex;flex-direction:column;gap:0;min-height:0;}
+    .todo{display:flex;align-items:flex-start;gap:10px;font-size:14.5px;line-height:1.5;
+      padding:9px 12px;border-bottom:1px solid var(--line);}
+    .group .todo:last-child{border-bottom:0;}
+    .todo.hover{background:var(--hover);}
+    .todo .ord{color:var(--faint);font-variant-numeric:tabular-nums;min-width:1.2em;
+      text-align:right;flex:none;}
+    .todo .what{flex:1;word-break:break-word;}
+    .todo.done .what{color:var(--faint);text-decoration:line-through;}
+    .todo .issue{display:inline-block;margin-left:6px;color:var(--you);font-size:12px;
+      white-space:nowrap;}
+    .todo .ref{display:inline-block;margin-left:6px;color:var(--amber);font-size:12px;
+      white-space:nowrap;}
+    .todo .actions{display:flex;gap:2px;opacity:0;flex:none;}
+    .todo.hover .actions{opacity:1;}
+    .ghost{background:transparent;border:0;color:var(--faint);font:inherit;font-size:12px;
+      padding:2px 6px;border-radius:6px;}
+
+    .composer input{width:100%;background:var(--sunken);border:1px solid var(--line);
+      border-radius:12px;color:var(--text);padding:10px 13px;font:inherit;font-size:14px;
+      outline:none;}
+    .composer input::placeholder{color:var(--faint);}
+
+    .hint{position:absolute;left:0;right:0;bottom:26px;text-align:center;
+      font-size:12.5px;color:var(--faint);}
+    .hint b{color:var(--soft);font-weight:600;}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <nav class="nav">
+    <span class="tab">Today</span>
+    <span class="tab">Older chats</span>
+    <span class="tab">Notes</span>
+    <span class="tab on">To-dos</span>
+  </nav>
+
+  <div class="centre">
+    <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+      <circle class="core" cx="130" cy="130" r="34" fill="rgba(143,217,168,0.08)"></circle>
+      <circle class="core" cx="130" cy="130" r="34" stroke="rgba(143,217,168,0.18)" stroke-width="1"></circle>
+      <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+        <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(143,217,168,0.85)"
+          opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+      </sc-for>
+    </svg>
+  </div>
+
+  <div class="cols">
+    <div class="left">
+      <div class="label"><span>Open</span><span class="count">5 open</span></div>
+      <div class="group">
+        <div class="todo">
+          <span class="ord">1.</span>
+          <span class="what">Add an idempotency key to the interest posting job<a class="issue" href="#">#421</a></span>
+        </div>
+        <div class="todo hover">
+          <span class="ord">2.</span>
+          <span class="what">Reverse the duplicate August postings by batch id<a class="issue" href="#">#438</a></span>
+        </div>
+        <div class="todo">
+          <span class="ord">3.</span>
+          <span class="what">Put the Nakshatra Residence migration behind a flag</span>
+        </div>
+        <div class="todo">
+          <span class="ord">4.</span>
+          <span class="what">Swap the fallback voice from Whisper base to small.en</span>
+        </div>
+        <div class="todo">
+          <span class="ord">5.</span>
+          <span class="what">Raise the scheduler socket timeout before the next window</span>
+        </div>
+      </div>
+      <div class="composer">
+        <input type="text" placeholder="add a to-do…">
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="label"><span>Done today</span><span class="count">3 done</span></div>
+      <div class="group">
+        <div class="todo done">
+          <span class="ord">✓</span>
+          <span class="what">Rebuild the recognizer when the microphone comes back</span>
+        </div>
+        <div class="todo done">
+          <span class="ord">✓</span>
+          <span class="what">Teach the recognizer the words this project actually uses</span>
+        </div>
+        <div class="todo done">
+          <span class="ord">✓</span>
+          <span class="what">Stop the trim throwing away the words it was meant to keep</span>
+        </div>
+      </div>
+
+      <div class="label"><span>Came from a note</span></div>
+      <div class="group">
+        <div class="todo">
+          <span class="ord">·</span>
+          <span class="what">Write the reversal script and dry-run it against staging<span class="ref">Interest posting post-mortem</span></span>
+        </div>
+        <div class="todo">
+          <span class="ord">·</span>
+          <span class="what">Confirm who owns the flag flip before Thursday<span class="ref">Handover — Nakshatra Residence</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">say <b>todo two is done</b> to tick one off without touching it</div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 20260830;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.22 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.52).toFixed(2),
+        delay: (rnd() * 4.2).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>

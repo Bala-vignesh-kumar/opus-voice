@@ -5,51 +5,87 @@
 <title>opus voice</title>
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  <header>
-    <div class="title">
-      <span class="dot" id="link-dot" title="connection"></span>
-      opus voice
-    </div>
-    <div class="meta" id="meta"></div>
-    <div class="mode" id="mode">asleep</div>
-  </header>
+<body data-view="library">
+  <div class="mark">
+    <span class="d" id="link-dot" title="connection"></span>
+    <span>opus voice</span>
+  </div>
 
-  <aside id="todos" class="todos" hidden>
-    <div class="todos-head">
-      <span class="todos-title">To-do</span>
-      <span class="todos-count" id="todo-count"></span>
-      <button class="ghost" id="todo-toggle" title="show or hide done items">show done</button>
+  <nav class="glass nav" id="nav">
+    <button class="t on" data-view="library">Library</button>
+    <button class="t" data-view="today">Today</button>
+    <button class="t" data-view="chats">Chats</button>
+    <button class="t" data-view="notes">Notes</button>
+  </nav>
+
+  <div class="topright">
+    <div class="state" id="state">
+      <span class="d"></span>
+      <span id="state-label">asleep</span>
     </div>
-    <ul class="todo-list" id="todo-list"></ul>
+    <button class="pill" data-cmd="stop">Sleep</button>
+  </div>
+
+  <!-- The form. Fixed dead centre in every view; nothing else is allowed to
+       occupy the middle column. -->
+  <div class="orb" id="orb">
+    <div class="halo" id="halo"></div>
+    <canvas id="field" aria-hidden="true"></canvas>
+  </div>
+
+  <!-- ------------------------------------------------------- library view -->
+
+  <aside class="glass rail left" id="meetings">
+    <div class="rh">
+      <span class="n">Upcoming</span>
+      <span class="c" id="meeting-count"></span>
+    </div>
+    <div class="list" id="meeting-list"></div>
+    <div class="rail-note">
+      No calendar connected. Once it is, the next meeting can go straight into
+      note mode instead of you starting it by voice.
+    </div>
+  </aside>
+
+  <aside class="glass rail right" id="todos" hidden>
+    <div class="rh">
+      <span class="n">To-do</span>
+      <span class="c" id="todo-count"></span>
+      <button class="go" id="todo-toggle" title="show or hide done items">show done</button>
+    </div>
+    <div class="list" id="todo-list"></div>
     <form id="todo-composer">
-      <input id="todo-input" type="text" placeholder="add a to-do…" autocomplete="off" spellcheck="false">
+      <input id="todo-input" type="text" placeholder="Add a to-do…" autocomplete="off" spellcheck="false">
     </form>
   </aside>
 
-  <main id="stream">
-    <div class="empty" id="empty">
-      <div class="orb idle"></div>
-      <p>Say <b>hey falcon</b> to wake it.</p>
-    </div>
+  <main class="stage" id="stage">
+    <div class="say" id="say"></div>
+    <div class="hint" id="hint"></div>
   </main>
 
-  <div class="live" id="live" hidden></div>
+  <!-- -------------------------------------------------------- browse views -->
 
-  <footer>
-    <div class="state" id="state">
-      <span class="orb idle" id="orb"></span>
-      <span class="label" id="state-label">asleep</span>
-    </div>
-    <div class="controls">
-      <button data-cmd="chat">Discuss</button>
-      <button data-cmd="note">Take notes</button>
-      <button data-cmd="stop">Sleep</button>
-    </div>
+  <div class="browse" id="browse" hidden>
+    <aside class="glass pane list-pane">
+      <div class="rh">
+        <span class="n" id="browse-title">Chats</span>
+        <span class="c" id="browse-count"></span>
+      </div>
+      <input id="browse-search" type="search" placeholder="Search…" autocomplete="off" spellcheck="false">
+      <div class="list" id="browse-list"></div>
+    </aside>
+    <div class="spacer"></div>
+    <article class="glass pane read-pane" id="browse-read"></article>
+  </div>
+
+  <div class="dock">
+    <button class="pill" data-cmd="chat">Discuss</button>
+    <button class="pill" data-cmd="note">Take notes</button>
     <form id="composer">
-      <input id="input" type="text" placeholder="or type instead of talking…" autocomplete="off" spellcheck="false">
+      <input id="input" type="text" placeholder="Type instead…" autocomplete="off" spellcheck="false">
     </form>
-  </footer>
+  </div>
 
   <script src="/app.js"></script>
 </body>

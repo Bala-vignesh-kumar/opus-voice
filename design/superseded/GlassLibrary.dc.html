@@ -1,0 +1,362 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#080b0e; --line:#22252c; --text:#e7e8ea; --soft:#9aa0aa; --faint:#5d636e;
+      --you:#7fb3ff; --opus:#8fd9a8; --amber:#e0b473; --edge:#333842;
+      --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+      --cut:16px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(110% 90% at 50% 46%, #0d1317 0%, #090c10 55%, #06080a 100%);}
+
+    /* Glass only reads as glass if there is something behind it to refract.
+       The blooms and the grid exist for the panels to blur, not for themselves. */
+    .bloom{position:absolute;border-radius:50%;filter:blur(90px);pointer-events:none;}
+    .bloom.a{width:760px;height:760px;left:50%;top:50%;margin:-380px 0 0 -380px;
+      background:rgba(143,217,168,.10);}
+    .bloom.b{width:440px;height:440px;left:4%;top:64%;background:rgba(127,179,255,.055);}
+    .bloom.c{width:400px;height:400px;right:3%;top:8%;background:rgba(224,180,115,.045);}
+
+    .grid{position:absolute;inset:0;pointer-events:none;
+      background-image:linear-gradient(rgba(143,217,168,.05) 1px,transparent 1px),
+                       linear-gradient(90deg,rgba(143,217,168,.05) 1px,transparent 1px);
+      background-size:64px 64px;
+      -webkit-mask-image:radial-gradient(78% 68% at 50% 50%,#000 0%,transparent 80%);
+      mask-image:radial-gradient(78% 68% at 50% 50%,#000 0%,transparent 80%);}
+
+    /* The chamfer is cut twice — once on the rim, once 1px inside it — because a
+       clip-path erases a border. The rim IS the outer element's background. */
+    .panel{position:relative;padding:1px;
+      clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut));
+      background:linear-gradient(155deg,rgba(143,217,168,.30),rgba(143,217,168,.10) 45%,rgba(255,255,255,.05));
+      filter:drop-shadow(0 20px 44px rgba(0,0,0,.55));}
+    .panel > .in{position:relative;
+      clip-path:polygon(calc(var(--cut) - 1px) 0,100% 0,100% calc(100% - var(--cut) + 1px),calc(100% - var(--cut) + 1px) 100%,0 100%,0 calc(var(--cut) - 1px));
+      background:linear-gradient(155deg,rgba(255,255,255,.06),rgba(255,255,255,.015) 38%,rgba(255,255,255,0) 70%),rgba(11,16,20,.60);
+      -webkit-backdrop-filter:blur(22px) saturate(1.3);
+      backdrop-filter:blur(22px) saturate(1.3);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.075);
+      padding:13px 15px 15px;
+      display:flex;flex-direction:column;gap:11px;}
+
+    /* Ticks on the two corners the chamfer leaves square, so all four read
+       as deliberate rather than two being cut by accident. */
+    .tick{position:absolute;width:9px;height:9px;pointer-events:none;z-index:2;}
+    .tick.tr{top:4px;right:4px;border-top:1px solid rgba(143,217,168,.55);border-right:1px solid rgba(143,217,168,.55);}
+    .tick.bl{bottom:4px;left:4px;border-bottom:1px solid rgba(143,217,168,.55);border-left:1px solid rgba(143,217,168,.55);}
+
+    .ph{display:flex;align-items:center;gap:8px;}
+    .dot{width:5px;height:5px;border-radius:50%;background:var(--opus);flex:none;
+      box-shadow:0 0 8px rgba(143,217,168,.9);}
+    .dot.amber{background:var(--amber);box-shadow:0 0 8px rgba(224,180,115,.9);}
+    .dot.blue{background:var(--you);box-shadow:0 0 8px rgba(127,179,255,.9);}
+    .pt{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.15em;
+      text-transform:uppercase;color:var(--soft);}
+    .chip{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;
+      color:var(--faint);border:1px solid rgba(143,217,168,.20);padding:2px 6px;
+      clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);}
+
+    .rows{display:flex;flex-direction:column;gap:0;}
+    .r{display:flex;align-items:baseline;gap:10px;padding:7px 0;
+      border-bottom:1px solid rgba(255,255,255,.045);}
+    .r:last-child{border-bottom:0;}
+    .r .k{flex:1;font-size:13px;color:var(--soft);line-height:1.4;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .r .v{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--faint);
+      font-variant-numeric:tabular-nums;flex:none;}
+    .r .n{font-family:var(--mono);font-size:11px;color:var(--faint);flex:none;
+      font-variant-numeric:tabular-nums;min-width:1.1em;text-align:right;}
+    .r.on .k{color:var(--text);}
+    .r .v.ok{color:var(--opus);}
+
+    .cols{position:absolute;inset:0;display:grid;
+      grid-template-columns:308px 1fr 308px;gap:0 30px;
+      padding:74px 32px 96px;align-content:start;}
+    .side{display:flex;flex-direction:column;gap:18px;}
+    .side.l{grid-column:1;}
+    .side.r{grid-column:3;}
+
+    /* ------------------------------------------------------------- centre */
+
+    .stage{grid-column:2;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:0;min-height:0;}
+
+    .banner{width:420px;}
+    .banner .in{align-items:center;text-align:center;gap:6px;padding:16px 18px 18px;}
+    .banner .cap{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;
+      text-transform:uppercase;color:var(--faint);}
+    .banner .msg{font-size:19px;font-weight:300;letter-spacing:-0.012em;color:var(--text);
+      line-height:1.4;}
+
+    .orb{position:relative;width:430px;height:430px;display:grid;place-items:center;
+      margin-top:26px;}
+    .orbit{position:absolute;inset:0;}
+    .orbit.a{animation:spin 90s linear infinite;}
+    .orbit.b{animation:spin 140s linear infinite reverse;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .swarm{width:330px;height:330px;animation:spin 62s linear infinite;}
+    .swarm circle.d{animation:flick 4.2s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.18}50%{opacity:1}}
+    .core{animation:core 5.4s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.45}50%{opacity:.85}}
+
+    .wake{margin-top:22px;--cut:11px;}
+    .wake .in{flex-direction:row;align-items:center;gap:9px;padding:8px 15px;}
+    .wake .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+      text-transform:uppercase;color:var(--opus);}
+
+    /* --------------------------------------------------------------- chrome */
+
+    .top{position:absolute;top:22px;left:32px;right:32px;display:flex;
+      align-items:center;justify-content:space-between;}
+    .brand{--cut:10px;}
+    .brand .in{flex-direction:row;align-items:center;gap:9px;padding:7px 14px;}
+    .brand .name{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+      text-transform:uppercase;color:var(--soft);}
+    .brand .sep{color:var(--faint);opacity:.5;}
+    .acts{display:flex;gap:10px;}
+    .btn{--cut:9px;}
+    .btn .in{padding:7px 15px;}
+    .btn .t{font-family:var(--mono);font-size:10px;letter-spacing:.15em;
+      text-transform:uppercase;color:var(--soft);}
+    .btn.warn{background:linear-gradient(155deg,rgba(240,140,134,.34),rgba(240,140,134,.10) 45%,rgba(255,255,255,.05));}
+    .btn.warn .t{color:#f08c86;}
+
+    .cmd{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:720px;--cut:12px;}
+    .cmd .in{flex-direction:row;align-items:center;gap:12px;padding:9px 10px 9px 16px;}
+    .cmd .ph2{flex:1;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+      color:var(--faint);}
+    .cmd .go{font-family:var(--mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;
+      color:var(--opus);border:1px solid rgba(143,217,168,.32);padding:5px 12px;
+      clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="bloom a"></div>
+  <div class="bloom b"></div>
+  <div class="bloom c"></div>
+  <div class="grid"></div>
+
+  <div class="top">
+    <div class="panel brand">
+      <span class="tick tr"></span>
+      <span class="tick bl"></span>
+      <div class="in">
+        <span class="dot"></span>
+        <span class="name">opus voice</span>
+        <span class="sep">//</span>
+        <span class="name">ambient</span>
+      </div>
+    </div>
+    <div class="acts">
+      <div class="panel btn">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in"><span class="t">library</span></div>
+      </div>
+      <div class="panel btn warn">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in"><span class="t">sleep</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="side l">
+      <div class="panel">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <div class="ph">
+            <span class="dot"></span>
+            <span class="pt">today</span>
+            <span class="chip">2 chats · 3 notes</span>
+          </div>
+          <div class="rows">
+            <div class="r on"><span class="k">Fineract interest posted twice</span><span class="v">14:06</span></div>
+            <div class="r"><span class="k">Nakshatra AMC handover</span><span class="v">16:05</span></div>
+            <div class="r"><span class="k">Wake word firing mid-call</span><span class="v">11:20</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <div class="ph">
+            <span class="dot"></span>
+            <span class="pt">to-dos</span>
+            <span class="chip">3 open</span>
+          </div>
+          <div class="rows">
+            <div class="r"><span class="n">1.</span><span class="k">Cache the Maven repo between builds</span><span class="v">#421</span></div>
+            <div class="r"><span class="n">2.</span><span class="k">Put the migration behind a flag</span></div>
+            <div class="r"><span class="n">3.</span><span class="k">Own the flag flip before Thursday</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <div class="ph">
+            <span class="dot"></span>
+            <span class="pt">session</span>
+            <span class="chip">local</span>
+          </div>
+          <div class="rows">
+            <div class="r"><span class="k">model</span><span class="v ok">opus</span></div>
+            <div class="r"><span class="k">voice</span><span class="v ok">piper neural</span></div>
+            <div class="r"><span class="k">recognizer</span><span class="v ok">transcriber · en-IN</span></div>
+            <div class="r"><span class="k">microphone</span><span class="v">released</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="panel banner">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <div class="cap">last transmission</div>
+          <div class="msg">It's the cache — rebuilding from scratch every run.</div>
+        </div>
+      </div>
+
+      <div class="orb">
+        <svg class="orbit a" viewBox="0 0 430 430" fill="none" aria-hidden="true">
+          <circle cx="215" cy="215" r="206" stroke="rgba(143,217,168,0.16)" stroke-width="1"
+            stroke-dasharray="2 9"></circle>
+          <circle cx="215" cy="215" r="206" stroke="rgba(143,217,168,0.34)" stroke-width="1"
+            stroke-dasharray="40 1256" stroke-linecap="round"></circle>
+        </svg>
+        <svg class="orbit b" viewBox="0 0 430 430" fill="none" aria-hidden="true">
+          <circle cx="215" cy="215" r="176" stroke="rgba(143,217,168,0.10)" stroke-width="1"
+            stroke-dasharray="1 7"></circle>
+        </svg>
+        <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+          <circle class="core" cx="130" cy="130" r="34" fill="rgba(143,217,168,0.09)"></circle>
+          <circle class="core" cx="130" cy="130" r="34" stroke="rgba(143,217,168,0.20)" stroke-width="1"></circle>
+          <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+            <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(143,217,168,0.85)"
+              opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+          </sc-for>
+        </svg>
+      </div>
+
+      <div class="panel wake">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <span class="dot"></span>
+          <span class="t">listening for "hey falcon"</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="side r">
+      <div class="panel">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <div class="ph">
+            <span class="dot blue"></span>
+            <span class="pt">older chats</span>
+            <span class="chip">142</span>
+          </div>
+          <div class="rows">
+            <div class="r on"><span class="k">Why the Fineract build got slow</span><span class="v">14:06</span></div>
+            <div class="r"><span class="k">Swapping Piper for the hfc voice</span><span class="v">11:20</span></div>
+            <div class="r"><span class="k">Keeping the raw transcript</span><span class="v">Fri</span></div>
+            <div class="r"><span class="k">Barge-in cutting the first word</span><span class="v">Fri</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <div class="ph">
+            <span class="dot amber"></span>
+            <span class="pt">notes</span>
+            <span class="chip">28 · 9 days</span>
+          </div>
+          <div class="rows">
+            <div class="r on"><span class="k">Interest posting post-mortem</span><span class="v">18:42</span></div>
+            <div class="r"><span class="k">Handover — Nakshatra Residence</span><span class="v">16:05</span></div>
+            <div class="r"><span class="k">Recognizer vocabulary review</span><span class="v">Fri</span></div>
+            <div class="r"><span class="k">Piper voice comparison</span><span class="v">Fri</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="tick tr"></span>
+        <span class="tick bl"></span>
+        <div class="in">
+          <div class="ph">
+            <span class="dot"></span>
+            <span class="pt">working in</span>
+            <span class="chip">git · main</span>
+          </div>
+          <div class="rows">
+            <div class="r"><span class="k">~/Utils/Random/opus-voice</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel cmd">
+    <span class="tick tr"></span>
+    <span class="tick bl"></span>
+    <div class="in">
+      <span class="ph2">type instead of talking…</span>
+      <span class="go">send</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 20260830;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.22 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.52).toFixed(2),
+        delay: (rnd() * 4.2).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>

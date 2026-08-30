@@ -20,6 +20,7 @@ import { UiServer } from './server.mjs';
 import { loadConfig, resolveWorkdir } from './config.mjs';
 import { parseWake, parseCommand, setWakePhrase, wakePhrase } from './wake.mjs';
 import { Notes, SUMMARY_PROMPT, splitSummary } from './notes.mjs';
+import { History } from './history.mjs';
 import { Todos } from './todos.mjs';
 import { parseTodo } from './todo-commands.mjs';
 import { createIssue } from './github.mjs';
@@ -40,7 +41,8 @@ const ui = new Ui();
 // needs to be able to ask for all of it at once, so it is kept rather than
 // printed and forgotten.
 const conversation = new Conversation();
-const view = makeView(ui, conversation);
+const history = new History({ dir: config.chatsDir || undefined, workdir: config.dir });
+const view = makeView(ui, conversation, history);
 const voice = new VoiceIO({
   locale: config.locale,
   echoCancellation: config.echoCancellation,
@@ -524,6 +526,8 @@ voice.on('speech-end', () => {
   if (!claude.busy && !voice.speaking) view.clearLive();
 });
 
+voice.on('level', ({ source, rms }) => view.level(source, rms));
+
 voice.on('standby', (on) => view.note(on ? 'microphone released' : 'microphone open'));
 voice.on('warn', (message) => view.warn(message));
 
@@ -645,9 +649,45 @@ claude.on('turn-end', () => {
 });
 
 claude.on('error', (err) => view.error(err.message));
-claude.on('exit', (code) => {
-  view.error(`claude exited (code ${code})`);
-  shutdown(1);
+
+// The reason it died, which used to be dropped on the floor: the CLI reports
+// rate limits and expired auth here and then exits, and without this the app
+// went down with nothing on screen but an exit code.
+claude.on('stderr', (text) => view.warn(text.split('\n')[0].slice(0, 200)));
+
+// A session that exits used to take the whole app with it. That was survivable
+// when this was a terminal program you had just typed into; it is not, now that
+// it starts at login and owns the screen — the machine you were talking to
+// simply vanishes, most often because a five-hour rate limit ran out.
+//
+// So the session is replaced instead. Twice in quick succession means it is not
+// coming back (bad flags, no auth), and that does end the app rather than
+// respawning forever.
+let claudeRestarts = [];
+claude.on('exit', (code, reason) => {
+  const now = Date.now();
+  claudeRestarts = claudeRestarts.filter((at) => now - at < 60_000);
+  claudeRestarts.push(now);
+
+  const detail = reason ? ` — ${reason}` : '';
+  if (claudeRestarts.length > 2) {
+    view.error(`claude exited (code ${code})${detail}`);
+    shutdown(1);
+    return;
+  }
+
+  view.error(`claude exited (code ${code})${detail} — starting a new session`);
+  // The same cleanup an interruption does: the half-finished turn is not coming
+  // back, and its filler timer would otherwise fire into the new session.
+  turn.aborted = true;
+  clearTimeout(turn.fillerTimer);
+  chunker.flush();
+  if (turn.line) view.interrupted();
+  claude.restart();
+  // Said out loud because the whole point of this thing is that you are not
+  // looking at it: an answer that never arrives is otherwise indistinguishable
+  // from it having ignored you.
+  speaker.say("I lost my connection to Claude, so I've started a new session. That last answer is gone.");
 });
 
 // MARK: the window
@@ -708,6 +748,8 @@ async function openWindow() {
   server = new UiServer(conversation, handleCommand, {
     port: config.uiPort,
     sessionFile: config.sessionFile || undefined,
+    workdir: config.dir,
+    chatsDir: history.dir,
   });
   const url = await server.listen();
 
@@ -771,6 +813,9 @@ function shutdown(code = 0) {
   if (closing) return;
   closing = true;
   clearTimeout(turn.fillerTimer);
+  // Closes the conversation that was still open, so a session ended with ctrl-c
+  // is filed under when it ended rather than left looking like it never did.
+  history.end();
   view.close();
   server?.close();
   shell?.kill();

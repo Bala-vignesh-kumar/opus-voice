@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --raised:#15171c; --line:#22252c; --text:#e7e8ea;
+      --soft:#9aa0aa; --faint:#5d636e; --you:#7fb3ff; --opus:#8fd9a8;
+      --amber:#e0b473; --sunken:#0b0c0f; --hover:#1b1e24; --edge:#333842;
+      --radius:12px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 92% at 50% 40%, #13151b 0%, #0d0e11 58%, #090a0d 100%);
+      display:flex;flex-direction:column;align-items:center;}
+
+    .col{width:900px;margin-top:88px;display:flex;flex-direction:column;gap:22px;}
+
+    .head{display:flex;align-items:baseline;gap:12px;}
+    .head h1{margin:0;font-size:38px;font-weight:200;letter-spacing:-0.022em;color:var(--text);}
+    .head .count{color:var(--faint);font-size:14px;}
+
+    /* Pills instead of tabs: the list is short enough that switching views
+       is a rare, deliberate act, not something that needs a persistent bar. */
+    .filters{display:flex;gap:8px;}
+    .pill{border:1px solid var(--line);border-radius:999px;padding:6px 14px;
+      font-size:13px;color:var(--soft);background:transparent;font:inherit;cursor:pointer;}
+    .pill.on{color:var(--text);border-color:var(--edge);background:var(--hover);}
+
+    .list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line);}
+    .todo{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;
+      font-size:15.5px;line-height:1.5;border-bottom:1px solid var(--line);}
+    .todo.hover{background:var(--hover);}
+
+    /* Only open rows carry a spoken ordinal — "todo two is done" needs a
+       number to grab onto. A finished item has nothing left to point at. */
+    .todo .ord{color:var(--faint);font-variant-numeric:tabular-nums;min-width:1.2em;
+      text-align:right;flex:none;}
+    .todo .what{flex:1;word-break:break-word;}
+    .todo.done .what{color:var(--faint);text-decoration:line-through;}
+    .todo .issue{display:inline-block;margin-left:6px;color:var(--you);font-size:12px;
+      white-space:nowrap;}
+    .todo .actions{display:flex;gap:2px;opacity:0;flex:none;}
+    .todo.hover .actions{opacity:1;}
+    .ghost{background:transparent;border:0;color:var(--faint);font:inherit;font-size:12px;
+      padding:2px 6px;border-radius:6px;}
+    .ghost:hover{color:var(--text);background:var(--hover);}
+    .ghost[disabled]{opacity:.4;}
+
+    .done-head{font-size:11.5px;text-transform:uppercase;letter-spacing:0.06em;
+      color:var(--faint);margin:14px 0 -4px;padding:0 14px;}
+
+    .composer{margin-top:6px;}
+    .composer input{width:100%;box-sizing:border-box;background:var(--sunken);
+      border:1px solid var(--line);border-radius:var(--radius);color:var(--text);
+      padding:11px 14px;font:inherit;outline:none;}
+    .composer input::placeholder{color:var(--faint);}
+
+    .hint{margin-top:10px;text-align:center;font-size:12.5px;color:var(--faint);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="col">
+    <div class="head">
+      <h1>To-do</h1>
+      <span class="count">5 open</span>
+    </div>
+
+    <div class="filters">
+      <button class="pill on">Open</button>
+      <button class="pill">Done</button>
+      <button class="pill">All</button>
+    </div>
+
+    <ul class="list">
+      <li class="todo">
+        <span class="ord">1.</span>
+        <span class="what">Cache the Maven repo between Fineract builds<a class="issue" href="#">#421</a></span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost" disabled="disabled">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo hover">
+        <span class="ord">2.</span>
+        <span class="what">Put the Nakshatra Residence migration behind a flag</span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo">
+        <span class="ord">3.</span>
+        <span class="what">Ask about owning the flag flip before Thursday</span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo">
+        <span class="ord">4.</span>
+        <span class="what">Swap Whisper for the on-device transcriber in the fallback path<a class="issue" href="#">#438</a></span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo">
+        <span class="ord">5.</span>
+        <span class="what">Write todos.json migration so old entries keep their ordinals</span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+    </ul>
+
+    <div class="done-head">Done today</div>
+    <ul class="list">
+      <li class="todo done">
+        <span class="ord">✓</span>
+        <span class="what">Drop the 0.3s throttle on the level meter</span>
+        <div class="actions">
+          <button class="ghost">↩</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo done">
+        <span class="ord">✓</span>
+        <span class="what">Pin the Piper neural voice model in config.json</span>
+        <div class="actions">
+          <button class="ghost">↩</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo done hover">
+        <span class="ord">✓</span>
+        <span class="what">Rebuild the recognizer when the microphone comes back<a class="issue" href="#">#415</a></span>
+        <div class="actions">
+          <button class="ghost">↩</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+    </ul>
+
+    <div class="composer">
+      <input type="text" placeholder="add a to-do…">
+    </div>
+    <div class="hint">or just say "hey falcon, add a to-do"</div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
+</content>

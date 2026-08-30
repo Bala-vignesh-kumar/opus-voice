@@ -1,0 +1,203 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --raised:#15171c; --line:#22252c; --text:#e7e8ea;
+      --soft:#9aa0aa; --faint:#5d636e; --you:#7fb3ff; --opus:#8fd9a8;
+      --amber:#e0b473; --ring-note:#4a3d28; --sunken:#0b0c0f; --hover:#1b1e24;
+      --edge:#333842;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 100% at 50% 46%, #11151a 0%, #0d0e11 60%, #090a0d 100%);}
+
+    /* Byte-for-byte the same block as the hub. Expanding a section must not
+       move, resize or recolour the form — the whole point of the screen is
+       that the one live thing on it stays put while the paper changes. */
+    .centre{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:470px;height:470px;display:grid;place-items:center;pointer-events:none;}
+    .swarm{width:470px;height:470px;animation:turn 62s linear infinite;}
+    @keyframes turn{to{transform:rotate(360deg)}}
+    .swarm circle.d{animation:flick 4.2s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.20}50%{opacity:1}}
+    .core{animation:core 5.4s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.45}50%{opacity:.8}}
+
+    /* The corners become one row of tabs, so moving between sections costs a
+       click and never a screen. */
+    .nav{position:absolute;top:38px;left:0;right:0;display:flex;justify-content:center;
+      gap:30px;font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;}
+    .tab{color:var(--faint);padding-bottom:5px;border-bottom:1px solid transparent;cursor:pointer;}
+    .tab:hover{color:var(--soft);}
+    .tab.on{color:var(--text);border-bottom-color:var(--text);}
+
+    /* The centre column is empty on purpose and exactly as wide as the form. */
+    .cols{position:absolute;inset:0;display:grid;
+      grid-template-columns:1fr 470px 1fr;gap:0 46px;
+      padding:112px 56px 62px;}
+    .left{grid-column:1;display:flex;flex-direction:column;gap:20px;min-height:0;}
+    .right{grid-column:3;display:flex;flex-direction:column;gap:16px;min-height:0;}
+
+    .day{font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);
+      font-variant-numeric:tabular-nums;}
+    .group{display:flex;flex-direction:column;gap:9px;}
+    .row{display:flex;align-items:baseline;gap:10px;padding:6px 10px 6px 12px;
+      border-left:2px solid transparent;cursor:pointer;}
+    .row:hover{background:var(--hover);}
+    .row .t{flex:1;font-size:13.5px;line-height:1.45;color:var(--soft);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .row .at{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;flex:none;}
+    /* Amber is note mode's colour everywhere else in the app, so the selected
+       note carries it rather than a generic highlight. */
+    .row.on{background:var(--hover);border-left-color:var(--amber);}
+    .row.on .t{color:var(--text);}
+
+    .title{font-size:32px;font-weight:200;letter-spacing:-0.02em;line-height:1.15;margin:0;}
+    .meta{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums;}
+    .label{font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);
+      margin-top:6px;}
+    .body{font-size:16px;line-height:1.7;color:var(--text);margin:0;}
+    .list{display:flex;flex-direction:column;gap:7px;margin:0;padding:0;list-style:none;
+      font-size:14px;line-height:1.5;color:var(--soft);}
+    .list li{display:flex;gap:9px;}
+    .list li::before{content:"";flex:none;width:14px;height:1px;background:var(--edge);
+      margin-top:11px;}
+    .refs{display:flex;flex-direction:column;gap:6px;font-size:13.5px;}
+    .refs .num{color:var(--you);}
+    .refs .rt{color:var(--faint);}
+
+    .hint{position:absolute;left:0;right:0;bottom:26px;text-align:center;
+      font-size:12.5px;color:var(--faint);}
+    .hint b{color:var(--soft);font-weight:600;}
+
+    /* Today-only additions. */
+    .date{font-size:38px;font-weight:200;letter-spacing:-0.022em;line-height:1.15;margin:0;}
+    .todo{display:flex;align-items:baseline;gap:10px;padding:6px 10px 6px 12px;font-size:13.5px;}
+    .todo .n{flex:none;color:var(--faint);font-variant-numeric:tabular-nums;}
+    .todo .done{color:var(--faint);text-decoration:line-through;}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <nav class="nav">
+    <span class="tab on">Today</span>
+    <span class="tab">Older chats</span>
+    <span class="tab">Notes</span>
+    <span class="tab">To-dos</span>
+  </nav>
+
+  <div class="centre">
+    <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+      <circle class="core" cx="130" cy="130" r="34" fill="rgba(143,217,168,0.08)"></circle>
+      <circle class="core" cx="130" cy="130" r="34" stroke="rgba(143,217,168,0.18)" stroke-width="1"></circle>
+      <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+        <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(143,217,168,0.85)"
+          opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+      </sc-for>
+    </svg>
+  </div>
+
+  <div class="cols">
+    <div class="left">
+      <div>
+        <h1 class="date">Sunday, 30 August</h1>
+        <div class="meta">2 conversations · 3 notes · 4 to-dos moved</div>
+      </div>
+
+      <div class="group">
+        <div class="label">Talked about</div>
+        <div class="row">
+          <span class="t">Interest posting post-mortem</span>
+          <span class="at">18:42</span>
+        </div>
+        <div class="row">
+          <span class="t">Handover — Nakshatra Residence</span>
+          <span class="at">16:05</span>
+        </div>
+        <div class="row">
+          <span class="t">Whisper vs. apple stt on-device</span>
+          <span class="at">09:14</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="label">Notes written</div>
+        <div class="row">
+          <span class="t">Interest posting post-mortem</span>
+          <span class="at">18:42</span>
+        </div>
+        <div class="row">
+          <span class="t">Recognizer vocabulary — Fineract terms</span>
+          <span class="at">17:20</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="group">
+        <div class="label">To-dos</div>
+        <div class="todo">
+          <span class="done">Reverse the duplicate Fineract postings by batch id</span>
+        </div>
+        <div class="todo">
+          <span class="n">1.</span>
+          <span>Add an idempotency key to the interest posting job</span>
+        </div>
+        <div class="todo">
+          <span class="n">2.</span>
+          <span>Rebuild the Whisper recognizer with the Fineract vocabulary list</span>
+        </div>
+        <div class="todo">
+          <span class="n">3.</span>
+          <span>Send the Nakshatra Residence handover note to Piper voice review</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="label">Still open</div>
+        <ul class="list">
+          <li>Whether opus voice keeps the raw transcript for todos.json entries.</li>
+          <li>Socket timeout on the Fineract scheduler still needs raising.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">say <b>hey falcon, what did I do today</b> to hear this instead</div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 20260830;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.22 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.52).toFixed(2),
+        delay: (rnd() * 4.2).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --raised:#15171c; --line:#22252c; --text:#e7e8ea;
+      --soft:#9aa0aa; --faint:#5d636e; --you:#7fb3ff; --opus:#8fd9a8;
+      --amber:#e0b473; --sunken:#0b0c0f; --hover:#1b1e24; --edge:#333842;
+      --ring-live:#2c4436; --radius:12px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;display:flex;}
+
+    /* The panel takes its column out of the ambient area rather than floating
+       over it, so the form stays fully visible and simply re-centres. */
+    .stage{position:relative;flex:1;min-width:0;
+      background:radial-gradient(120% 92% at 50% 40%, #12171a 0%, #0d0e11 58%, #090a0d 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;}
+
+    .field{position:relative;width:290px;height:290px;display:grid;place-items:center;}
+    /* Steady mid-tempo spin: this is the resting listening state, alert but not
+       reacting to anything in particular — no words are landing yet. */
+    .swarm{width:290px;height:290px;animation:turn 40s linear infinite;}
+    @keyframes turn{to{transform:rotate(360deg)}}
+    .swarm circle.d{animation:flick 2.8s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.20}50%{opacity:1}}
+    .core{animation:core 5.4s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.45}50%{opacity:.85}}
+
+    .status{position:absolute;top:34px;left:50%;transform:translateX(-50%);
+      padding:3px 11px;border:1px solid var(--ring-live);border-radius:999px;
+      color:var(--opus);font-size:12px;letter-spacing:0.02em;}
+
+    .said{margin-top:28px;text-align:center;max-width:760px;
+      font-size:26px;font-weight:300;letter-spacing:-0.014em;color:var(--text);}
+    .hint{position:absolute;left:0;right:0;bottom:38px;text-align:center;
+      font-size:12.5px;color:var(--faint);}
+    .hint b{color:var(--soft);font-weight:600;}
+
+    /* ------------------------------------------------- to-do panel (as shipped) */
+
+    .todos{width:360px;flex:none;display:flex;flex-direction:column;min-height:0;
+      border-left:1px solid var(--line);background:var(--raised);}
+
+    .todos-head{display:flex;align-items:center;gap:8px;padding:14px 16px 10px;
+      border-bottom:1px solid var(--line);}
+    .todos-title{font-weight:600;font-size:13px;letter-spacing:0.02em;}
+    .todos-count{color:var(--faint);font-size:12px;flex:1;}
+
+    .ghost{background:transparent;border:0;color:var(--faint);font:inherit;font-size:12px;
+      padding:2px 6px;border-radius:6px;cursor:pointer;}
+    .ghost:hover{color:var(--text);background:var(--hover);}
+    .ghost[disabled]{opacity:.4;cursor:default;}
+
+    .todo-list{flex:1;overflow-y:auto;list-style:none;margin:0;padding:8px 0;min-height:0;}
+    .todo{display:flex;align-items:flex-start;gap:8px;padding:7px 12px 7px 14px;
+      font-size:13.5px;line-height:1.45;}
+    .todo.hover{background:var(--hover);}
+    .todo .ord{color:var(--faint);font-variant-numeric:tabular-nums;min-width:1.2em;
+      text-align:right;flex:none;}
+    .todo .what{flex:1;word-break:break-word;}
+    .todo.done .what{color:var(--faint);text-decoration:line-through;}
+    .todo .issue{display:inline-block;margin-left:6px;color:var(--you);font-size:12px;
+      white-space:nowrap;}
+    .todo .actions{display:flex;gap:2px;opacity:0;flex:none;}
+    .todo.hover .actions{opacity:1;}
+
+    .composer{padding:10px 12px 12px;border-top:1px solid var(--line);}
+    .composer input{width:100%;background:var(--sunken);border:1px solid var(--line);
+      border-radius:var(--radius);color:var(--text);padding:8px 10px;font:inherit;
+      font-size:13px;outline:none;}
+    .composer input::placeholder{color:var(--faint);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="stage">
+    <div class="status">listening</div>
+
+    <div class="field">
+      <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+        <circle class="core" cx="130" cy="130" r="34" fill="rgba(143,217,168,0.09)"></circle>
+        <circle class="core" cx="130" cy="130" r="34" stroke="rgba(143,217,168,0.20)" stroke-width="1"></circle>
+        <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+          <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(143,217,168,0.85)"
+            opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+        </sc-for>
+      </svg>
+    </div>
+
+    <div class="said">Added — that's three open.</div>
+
+    <div class="hint">say <b>todo two is done</b> to tick one off without touching it</div>
+  </div>
+
+  <aside class="todos">
+    <div class="todos-head">
+      <span class="todos-title">To-do</span>
+      <span class="todos-count">3 open</span>
+      <button class="ghost">show done</button>
+    </div>
+
+    <ul class="todo-list">
+      <li class="todo">
+        <span class="ord">1.</span>
+        <span class="what">Cache the Maven repo between builds<a class="issue" href="#">#421</a></span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost" disabled="disabled">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo hover">
+        <span class="ord">2.</span>
+        <span class="what">Put the Nakshatra migration behind a flag</span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo">
+        <span class="ord">3.</span>
+        <span class="what">Ask about owning the flag flip before Thursday</span>
+        <div class="actions">
+          <button class="ghost">✓</button>
+          <button class="ghost">⇧</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+      <li class="todo done">
+        <span class="ord">✓</span>
+        <span class="what">Drop the 0.3s throttle on the level meter</span>
+        <div class="actions">
+          <button class="ghost">↩</button>
+          <button class="ghost">✕</button>
+        </div>
+      </li>
+    </ul>
+
+    <div class="composer">
+      <input type="text" placeholder="add a to-do…">
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 42042;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.5 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.58).toFixed(2),
+        delay: (rnd() * 2.8).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>

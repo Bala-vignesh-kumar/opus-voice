@@ -116,6 +116,69 @@ function pad(value) {
   return String(value).padStart(2, '0');
 }
 
+/**
+ * The notes already on disk, newest first, for the window to browse.
+ *
+ * Reads the files rather than keeping an index, because the files are the
+ * record: notes written by an older run, or edited by hand afterwards, are
+ * still notes and should still be listed.
+ */
+export function listNotes({ dir = process.cwd(), limit = 200 } = {}) {
+  const root = path.join(dir, 'notes');
+  let days;
+  try {
+    days = fs.readdirSync(root).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
+  } catch {
+    return [];
+  }
+
+  const out = [];
+  for (const day of days) {
+    let files;
+    try {
+      files = fs.readdirSync(path.join(root, day)).filter((f) => f.endsWith('.md')).sort();
+    } catch {
+      continue;
+    }
+    for (const name of files) {
+      if (out.length >= limit) return out;
+      const file = path.join(root, day, name);
+      let body;
+      try {
+        body = fs.readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+      const lines = body.split('\n');
+      const heading = lines.find((l) => l.startsWith('# '))?.slice(2).trim();
+      out.push({
+        id: `${day}/${name.replace(/\.md$/, '')}`,
+        day,
+        title: heading || name.replace(/\.md$/, ''),
+        // The line under the heading is the date, count and duration.
+        meta: lines[2]?.trim() ?? '',
+        at: (() => {
+          try { return fs.statSync(file).mtimeMs; } catch { return 0; }
+        })(),
+      });
+    }
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
+/** One note in full, or null. */
+export function readNote(id, { dir = process.cwd() } = {}) {
+  const root = path.resolve(path.join(dir, 'notes'));
+  const file = path.resolve(root, `${id}.md`);
+  // The id arrives from the window, which means it arrives from the network.
+  if (!file.startsWith(root + path.sep)) return null;
+  try {
+    return { id, body: fs.readFileSync(file, 'utf8') };
+  } catch {
+    return null;
+  }
+}
+
 /** A filename stem from a spoken title: lowercase words joined by hyphens. */
 export function slug(title) {
   return String(title)

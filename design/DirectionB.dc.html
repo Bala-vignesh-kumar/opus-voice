@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{--bg:#0d0e11;--text:#e7e8ea;--soft:#9aa0aa;--faint:#5d636e;--opus:#8fd9a8;--you:#7fb3ff;}
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:720px;height:450px;overflow:hidden;
+      background:radial-gradient(120% 100% at 50% 42%, #11151a 0%, #0d0e11 60%, #090a0d 100%);
+      display:grid;place-items:center;}
+
+    .swarm{width:300px;height:300px;animation:turn 44s linear infinite;}
+    @keyframes turn{to{transform:rotate(360deg)}}
+    .swarm circle{animation:flick 3.6s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.22}50%{opacity:1}}
+
+    .core{transform-origin:130px 130px;animation:core 4.4s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.5}50%{opacity:.9}}
+
+    .cap{position:absolute;left:28px;bottom:24px;display:flex;flex-direction:column;gap:3px;}
+    .cap .n{font-size:14px;font-weight:600;letter-spacing:-0.005em;color:var(--text);}
+    .cap .t{font-size:12.5px;color:var(--faint);max-width:340px;}
+    .tag{position:absolute;right:28px;bottom:26px;font-size:11.5px;letter-spacing:0.06em;
+      text-transform:uppercase;color:var(--faint);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+    <circle class="core" cx="130" cy="130" r="34" fill="rgba(143,217,168,0.10)"></circle>
+    <circle class="core" cx="130" cy="130" r="34" stroke="rgba(143,217,168,0.22)" stroke-width="1"></circle>
+    <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+      <circle cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(143,217,168,0.85)"
+        opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+    </sc-for>
+  </svg>
+
+  <div class="cap">
+    <div class="n">B · Particle field</div>
+    <div class="t">Cool and technical. Amplitude scatters the band outward, so loud speech visibly disperses it. Needs a canvas and a per-frame loop to look right at full size.</div>
+  </div>
+  <div class="tag">Direction B</div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"energy":{"editor":"range","default":0.45,"min":0,"max":1,"step":0.05,"section":"Amplitude","tsType":"number"},"$preview":{"width":720,"height":450}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const e = this.props.energy ?? 0.45;
+    // Deterministic so the sketch is stable across renders — the shipped
+    // version reads its radii from the level stream instead.
+    let s = 20260830;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + e * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.16 + rnd() * 0.62).toFixed(2),
+        delay: (rnd() * 3.6).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>

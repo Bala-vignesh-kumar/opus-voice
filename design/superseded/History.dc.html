@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --bg:#0d0e11; --raised:#15171c; --line:#22252c; --text:#e7e8ea;
+      --soft:#9aa0aa; --faint:#5d636e; --you:#7fb3ff; --opus:#8fd9a8;
+      --amber:#e0b473; --sunken:#0b0c0f; --hover:#1b1e24; --edge:#333842;
+      --radius:12px;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:radial-gradient(120% 92% at 50% 40%, #13151b 0%, #0d0e11 58%, #090a0d 100%);
+      display:flex;flex-direction:column;align-items:center;}
+
+    .pill{margin-top:34px;flex:none;padding:3px 11px;border:1px solid var(--line);
+      border-radius:999px;font-size:12px;letter-spacing:.02em;color:var(--soft);}
+
+    /* 860px rather than the app's 720px --measure: this screen is read at a glance
+       across a full display, not typed into, so it can afford the wider column. */
+    .col{width:860px;flex:none;margin-top:22px;display:flex;flex-direction:column;gap:26px;}
+
+    .search{background:var(--sunken);border:1px solid var(--line);border-radius:var(--radius);
+      color:var(--text);padding:11px 14px;font:inherit;outline:none;}
+    .search::placeholder{color:var(--faint);}
+
+    .day{display:flex;flex-direction:column;gap:2px;}
+    .day-head{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);
+      padding:0 4px 8px;}
+
+    .row{display:flex;align-items:baseline;gap:16px;padding:10px 12px;border-radius:8px;}
+    .row.hover{background:var(--hover);}
+
+    .time{flex:none;width:52px;font-size:12.5px;color:var(--faint);
+      font-variant-numeric:tabular-nums;}
+    .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+    .topic{font-size:17px;color:var(--text);letter-spacing:-0.006em;}
+    /* Preview text is the one place on this screen that must clip hard — a runaway
+       answer line would break the rhythm of otherwise-equal rows. */
+    .preview{font-size:13.5px;color:var(--soft);white-space:nowrap;overflow:hidden;
+      text-overflow:ellipsis;}
+
+    .mode{flex:none;display:flex;align-items:center;gap:6px;font-size:11.5px;
+      letter-spacing:.02em;padding-top:2px;}
+    .dot{width:6px;height:6px;border-radius:50%;flex:none;}
+    .mode.chat{color:var(--opus);}
+    .mode.chat .dot{background:var(--opus);}
+    .mode.note{color:var(--amber);}
+    .mode.note .dot{background:var(--amber);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="pill">older chats</div>
+
+  <div class="col">
+    <input class="search" type="text" placeholder="search what you talked about…">
+
+    <div class="day">
+      <div class="day-head">Today</div>
+      <div class="row hover">
+        <span class="time">9:14a</span>
+        <div class="body">
+          <span class="topic">Fineract loan schedule rounding</span>
+          <span class="preview">the periodic accrual was off by a paisa on the last installment because of how Fineract rounds the closing balance</span>
+        </div>
+        <span class="mode chat"><span class="dot"></span>chat</span>
+      </div>
+      <div class="row">
+        <span class="time">8:02a</span>
+        <div class="body">
+          <span class="topic">Piper voice for opus fallback</span>
+          <span class="preview">swapping to the medium-quality Piper voice when the neural one hasn't warmed up yet keeps the first reply from stalling</span>
+        </div>
+        <span class="mode note"><span class="dot"></span>note</span>
+      </div>
+    </div>
+
+    <div class="day">
+      <div class="day-head">Yesterday</div>
+      <div class="row">
+        <span class="time">6:40p</span>
+        <div class="body">
+          <span class="topic">Whisper drifting on background TV audio</span>
+          <span class="preview">on-device Whisper kept transcribing the television as commands, so wake-word gating needed a tighter energy gate</span>
+        </div>
+        <span class="mode chat"><span class="dot"></span>chat</span>
+      </div>
+      <div class="row">
+        <span class="time">3:55p</span>
+        <div class="body">
+          <span class="topic">Nakshatra Residence handover walk-through</span>
+          <span class="preview">the electrical snag list needs to go back to the contractor before the flat B possession date next week</span>
+        </div>
+        <span class="mode note"><span class="dot"></span>note</span>
+      </div>
+      <div class="row">
+        <span class="time">11:20a</span>
+        <div class="body">
+          <span class="topic">todos.json sync across two machines</span>
+          <span class="preview">a stale write clobbered a done flag when both laptops flushed the file within the same second</span>
+        </div>
+        <span class="mode chat"><span class="dot"></span>chat</span>
+      </div>
+    </div>
+
+    <div class="day">
+      <div class="day-head">Tuesday 25 August</div>
+      <div class="row">
+        <span class="time">7:48p</span>
+        <div class="body">
+          <span class="topic">Apache Fineract savings interest posting job</span>
+          <span class="preview">the nightly posting job was scheduled against server time instead of the branch's configured timezone</span>
+        </div>
+        <span class="mode chat"><span class="dot"></span>chat</span>
+      </div>
+      <div class="row">
+        <span class="time">4:10p</span>
+        <div class="body">
+          <span class="topic">wake phrase false triggers on "hey"</span>
+          <span class="preview">shortening the required lead-in silence cut the false positives from other people saying hey nearby</span>
+        </div>
+        <span class="mode note"><span class="dot"></span>note</span>
+      </div>
+      <div class="row">
+        <span class="time">1:30p</span>
+        <div class="body">
+          <span class="topic">Nakshatra Residence lift maintenance vendor</span>
+          <span class="preview">asked to compare the two AMC quotes and flag which one covers call-out visits beyond the base four</span>
+        </div>
+        <span class="mode chat"><span class="dot"></span>chat</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

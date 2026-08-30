@@ -29,6 +29,10 @@ export class Conversation extends EventEmitter {
     this.speaking = false;
     this.info = {};          // banner details: model, voice, workdir
     this.todos = [];         // the list, mirrored for the window
+    // Loudness, one reading per direction. Deliberately not an entry: it is the
+    // only thing here that is worth nothing a moment after it arrives, and a
+    // transcript that recorded 30 numbers a second would be useless.
+    this.level = { in: 0, out: 0 };
   }
 
   /** Everything a freshly connected client needs to draw the whole window. */
@@ -42,6 +46,7 @@ export class Conversation extends EventEmitter {
       speaking: this.speaking,
       info: this.info,
       todos: this.todos,
+      level: this.level,
     };
   }
 
@@ -130,6 +135,20 @@ export class Conversation extends EventEmitter {
   setTodos(todos) {
     this.todos = todos;
     this.emit('change', { type: 'todos', todos });
+  }
+
+  /**
+   * Loudness in one direction, 'in' from the microphone or 'out' from the mixer.
+   *
+   * Announced without being kept in `entries`, so a client that connects late
+   * gets the current pair from `snapshot()` and follows the patches from there.
+   */
+  setLevel(source, rms) {
+    const key = source === 'out' ? 'out' : 'in';
+    const value = Number.isFinite(rms) ? rms : 0;
+    if (this.level[key] === value) return;
+    this.level = { ...this.level, [key]: value };
+    this.emit('change', { type: 'level', source: key, rms: value });
   }
 
   setSpeaking(speaking) {

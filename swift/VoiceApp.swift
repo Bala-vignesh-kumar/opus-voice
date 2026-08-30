@@ -39,9 +39,14 @@ final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     window.title = "opus voice"
     window.titlebarAppearsTransparent = true
     window.titleVisibility = .hidden
-    window.backgroundColor = NSColor(red: 0.051, green: 0.055, blue: 0.067, alpha: 1)
+    // The ground the page paints, so the half-second before the first frame is
+    // the same colour as the page rather than a flash of the old near-black.
+    window.backgroundColor = NSColor(red: 0.043, green: 0.051, blue: 0.063, alpha: 1)
     window.appearance = NSAppearance(named: .darkAqua)
     window.minSize = NSSize(width: 480, height: 420)
+    // Without this the green button zooms instead of going full screen, and
+    // `toggleFullScreen` below does nothing at all.
+    window.collectionBehavior.insert(.fullScreenPrimary)
     window.contentView = web
     window.center()
     window.setFrameAutosaveName("opus-voice")
@@ -51,6 +56,24 @@ final class Delegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
+
+    if Self.wantsFullScreen {
+      // After activation, not before: a window that is not yet key slides into
+      // its Space without taking focus, and you land on an empty desktop with
+      // the app full screen somewhere to the right.
+      window.toggleFullScreen(nil)
+    }
+  }
+
+  /// Full screen at launch, unless told otherwise.
+  ///
+  /// Opt-out rather than opt-in because this is what the app is for — it starts
+  /// at login and takes the display. But it starts at login, which is exactly
+  /// when you cannot get at a setting to stop it, so `OV_FULLSCREEN=0` is the
+  /// way back out of a machine that boots into a screen you did not want.
+  private static var wantsFullScreen: Bool {
+    let flag = ProcessInfo.processInfo.environment["OV_FULLSCREEN"]
+    return !(flag == "0" || flag == "false" || flag == "no")
   }
 
   // Closing the window ends the app; the orchestrator that launched it decides

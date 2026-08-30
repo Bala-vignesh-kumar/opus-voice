@@ -1,0 +1,65 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Screens" },
+    { "id": "page-2", "name": "Directions" },
+    { "id": "page-3", "name": "Library" },
+    { "id": "page-4", "name": "Glass" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Ready — login", "page": "page-1", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Asleep.dc.html", "page": "page-1", "x": 1560, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Listening.dc.html", "page": "page-1", "x": 3120, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Thinking.dc.html", "page": "page-1", "x": 0, "y": 1060, "w": 1440, "h": 900 },
+    { "file": "Speaking.dc.html", "page": "page-1", "x": 1560, "y": 1060, "w": 1440, "h": 900 },
+    { "file": "NoteMode.dc.html", "title": "Note mode", "page": "page-1", "x": 3120, "y": 1060, "w": 1440, "h": 900 },
+    { "file": "Todos.dc.html", "title": "To-do panel", "page": "page-1", "x": 0, "y": 2120, "w": 1440, "h": 900 },
+
+    { "file": "DirectionA.dc.html", "title": "A · Liquid orb", "page": "page-2", "x": 0, "y": 0, "w": 720, "h": 450 },
+    { "file": "DirectionB.dc.html", "title": "B · Particle field", "page": "page-2", "x": 840, "y": 0, "w": 720, "h": 450 },
+    { "file": "DirectionC.dc.html", "title": "C · Concentric waveform", "page": "page-2", "x": 1680, "y": 0, "w": 720, "h": 450 },
+
+    { "file": "Library.dc.html", "title": "Library — idle", "page": "page-3", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "LibraryToday.dc.html", "title": "↳ Today", "page": "page-3", "x": 1560, "y": 0, "w": 1440, "h": 900 },
+    { "file": "LibraryChats.dc.html", "title": "↳ Older chats", "page": "page-3", "x": 3120, "y": 0, "w": 1440, "h": 900 },
+    { "file": "LibraryNotes.dc.html", "title": "↳ Notes", "page": "page-3", "x": 1560, "y": 1060, "w": 1440, "h": 900 },
+    { "file": "LibraryTasks.dc.html", "title": "↳ To-dos", "page": "page-3", "x": 3120, "y": 1060, "w": 1440, "h": 900 },
+
+    { "file": "GlassLibrary.dc.html", "title": "Glass — library idle", "page": "page-4", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "GlassListening.dc.html", "title": "Glass — listening", "page": "page-4", "x": 1560, "y": 0, "w": 1440, "h": 900 }
+  ],
+  "annotations": [
+    {
+      "id": "screens-note",
+      "page": "page-1",
+      "x": 0,
+      "y": -190,
+      "w": 620,
+      "text": "Every value here is lifted from ui/style.css, not invented: #0d0e11 ground, the --you / --opus / --amber state colours, 999px pills, the 11.5-17px ramp.\n\nWhat is new is the altitude. The windowed UI is a log you read; fullscreen is a thing you glance at, so the transcript becomes one or two lines of 31px type and everything else falls away."
+    },
+    {
+      "id": "directions-note",
+      "page": "page-2",
+      "x": 0,
+      "y": -170,
+      "w": 620,
+      "text": "Drag the Amplitude slider above each frame to see the form at different speaking volumes — that is the axis they actually differ on.\n\nThe seven screens are drawn in Direction A. Pick a different one and they get rebuilt in it."
+    },
+    {
+      "id": "glass-note",
+      "page": "page-4",
+      "x": 0,
+      "y": -230,
+      "w": 700,
+      "text": "Meetings left, to-dos right, the form between them.\n\nMeetings are NOT wired — there is no calendar code in this repo. The rail is designed against EventKit shape (title, start, duration, attendee count) because that is what a native macOS app can read without a server, but nothing behind it exists yet.\n\nOnly the next meeting gets a surface. A calendar where every row is a card is just a list of cards; what this rail is for is which meeting is about to start.\n\nThe \"Take notes through it\" action is the reason the app wants a calendar at all — it is note mode, pre-aimed at a meeting, which is what already writes notes/<date>/<title>.md.\n\n---\n\nRebuilt earlier. The sci-fi HUD version is gone — chamfers, corner ticks, mono caps, the grid and the neon rims all went with it.\n\nWhat replaced them: 28px radii, one glass material used twice per screen, and a specular top-edge highlight that is doing almost all the work — that bright 1.2px inset line is the edge catching the light, and it is the difference between modern glass and a translucent rectangle.\n\nTwo surfaces per screen, not six. Content that does not need a surface sits on the open ground: the last answer, the interim transcript. Putting a panel behind everything is what made the first attempt heavy.\n\nThe light pools in the background are there so the blur has something to refract — but they read as light rather than as scenery, which the grid never did.\n\nStill one accent, still green/amber/blue meaning listening/notes/speaking, and still only one real gauge: the level meter, which VoiceIO genuinely emits."
+    },
+    {
+      "id": "library-note",
+      "page": "page-3",
+      "x": 0,
+      "y": -190,
+      "w": 660,
+      "text": "ONE screen, shown in five states — not five screens.\n\nThe particle field is at dead centre in every frame here, the same size, the same colour, the same position, generated by the same code. Expanding a section changes only what sits either side of it. That is why the middle column of the content grid is empty and exactly as wide as the form.\n\nThe summary lives inside Older chats rather than as its own destination — on a single-page view, opening a conversation IS the summary.\n\nNothing here is backed by storage yet. Conversation history is not persisted anywhere in the repo; notes/ and todos.json are the only durable records. That gap is the real work behind this page."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-4" }
+}

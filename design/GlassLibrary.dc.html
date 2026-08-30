@@ -1,0 +1,293 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --text:#eef0f2; --soft:#a7adb6; --faint:#6b717b;
+      --you:#7fb3ff; --opus:#8fd9a8; --amber:#e0b473;
+    }
+    body{margin:0;background:#0b0d10;color:var(--text);
+      font:15.5px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    a{color:var(--you);text-decoration:none} a:hover{text-decoration:underline}
+
+    /* Light pools, not a grid. Glass has nothing to refract on a flat ground —
+       but the source of the light should read as light, not as scenery. */
+    .s{position:relative;width:1440px;height:900px;overflow:hidden;
+      background:
+        radial-gradient(52% 44% at 20% 14%, rgba(143,217,168,.13), transparent 72%),
+        radial-gradient(48% 42% at 84% 80%, rgba(127,179,255,.10), transparent 72%),
+        radial-gradient(44% 40% at 88% 12%, rgba(224,180,115,.055), transparent 74%),
+        radial-gradient(80% 70% at 50% 44%, #191d24 0%, #101318 55%, #0b0d10 100%);}
+
+    /* One material. The top inset highlight is the whole trick: it is the edge
+       catching the light, and it is what separates glass from a grey rectangle. */
+    .glass{
+      border-radius:28px;
+      background:linear-gradient(180deg, rgba(255,255,255,.11), rgba(255,255,255,.035) 34%, rgba(255,255,255,.018) 100%);
+      -webkit-backdrop-filter:blur(34px) saturate(1.7);
+      backdrop-filter:blur(34px) saturate(1.7);
+      box-shadow:
+        inset 0 1.2px 0 rgba(255,255,255,.26),
+        inset 0 0 0 1px rgba(255,255,255,.055),
+        inset 0 -24px 44px rgba(0,0,0,.20),
+        0 28px 70px rgba(0,0,0,.44),
+        0 3px 10px rgba(0,0,0,.26);}
+
+    /* --------------------------------------------------------------- chrome */
+
+    .nav{position:absolute;top:34px;left:50%;transform:translateX(-50%);
+      display:flex;gap:3px;padding:4px;border-radius:999px;z-index:2;}
+    .nav .t{padding:8px 20px;border-radius:999px;font-size:13.5px;color:var(--soft);
+      cursor:pointer;white-space:nowrap;}
+    .nav .t:hover{color:var(--text);}
+    .nav .t.on{color:var(--text);
+      background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 2px 6px rgba(0,0,0,.30);}
+
+    .mark{position:absolute;top:40px;left:44px;display:flex;align-items:center;gap:9px;
+      font-size:13.5px;color:var(--soft);letter-spacing:-0.005em;z-index:2;}
+    .mark .d{width:6px;height:6px;border-radius:50%;background:var(--opus);
+      box-shadow:0 0 10px rgba(143,217,168,.8);}
+
+    .sleep{position:absolute;top:36px;right:44px;padding:8px 18px;border-radius:999px;
+      font-size:13.5px;color:var(--soft);cursor:pointer;z-index:2;
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.028));
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.18), inset 0 0 0 1px rgba(255,255,255,.05),
+                 0 3px 10px rgba(0,0,0,.28);}
+    .sleep:hover{color:var(--text);}
+
+    /* ---------------------------------------------------------------- rails */
+
+    .rail{position:absolute;top:112px;width:312px;height:706px;
+      padding:22px 20px;display:flex;flex-direction:column;gap:16px;}
+    .rail.l{left:44px;}
+    .rail.r{right:44px;}
+
+    .rh{display:flex;align-items:baseline;gap:10px;}
+    .rh .n{font-size:15px;font-weight:590;letter-spacing:-0.01em;color:var(--text);}
+    .rh .c{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums;}
+    .rh .go{margin-left:auto;font-size:12.5px;color:var(--faint);cursor:pointer;}
+    .rh .go:hover{color:var(--soft);}
+
+    .list{display:flex;flex-direction:column;gap:4px;min-height:0;}
+
+    /* ------------------------------------------------------------- meetings */
+
+    .m{display:flex;flex-direction:column;gap:3px;padding:11px 13px;border-radius:16px;}
+    .m .top{display:flex;align-items:baseline;gap:9px;}
+    .m .at{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums;flex:none;}
+    .m .ttl{flex:1;font-size:13.5px;line-height:1.4;color:var(--soft);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .m .who{font-size:12.5px;color:var(--faint);padding-left:52px;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+    /* Only the next one gets a surface. A calendar where every row is a card is
+       a list of cards; the point here is which meeting is about to start. */
+    .m.next{background:rgba(255,255,255,.055);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.12), inset 0 0 0 1px rgba(255,255,255,.045);}
+    .m.next .at{color:var(--opus);}
+    .m.next .ttl{color:var(--text);font-weight:590;}
+
+    /* Note mode is the reason the app wants a calendar at all: "hey falcon
+       listen" through a meeting is what writes notes/<date>/<title>.md. */
+    .take{margin-top:7px;margin-left:52px;align-self:flex-start;
+      padding:5px 12px;border-radius:999px;font-size:12.5px;color:var(--amber);
+      background:rgba(224,180,115,.10);
+      box-shadow:inset 0 0 0 1px rgba(224,180,115,.20);cursor:pointer;}
+
+    .soon{margin-top:auto;padding-top:14px;font-size:12.5px;color:var(--faint);
+      border-top:1px solid rgba(255,255,255,.06);}
+
+    /* --------------------------------------------------------------- to-dos */
+
+    .t{display:flex;align-items:baseline;gap:10px;padding:9px 13px;border-radius:14px;
+      font-size:13.5px;line-height:1.45;}
+    .t:hover{background:rgba(255,255,255,.045);}
+    /* The ordinal is spoken out loud — "todo two is done" — so it is part of
+       the row rather than decoration, and only open items carry one. */
+    .t .o{color:var(--faint);font-variant-numeric:tabular-nums;min-width:1.2em;
+      text-align:right;flex:none;}
+    .t .k{flex:1;color:var(--soft);word-break:break-word;}
+    .t .issue{color:var(--you);font-size:12px;flex:none;}
+    .t.done .o{color:rgba(143,217,168,.7);}
+    .t.done .k{color:var(--faint);text-decoration:line-through;}
+
+    .sub{padding:2px 13px 4px;font-size:12.5px;color:var(--faint);}
+
+    .add{margin-top:auto;padding:10px 14px;border-radius:999px;font-size:13px;color:var(--faint);
+      background:rgba(255,255,255,.045);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.10), inset 0 0 0 1px rgba(255,255,255,.045);}
+
+    /* --------------------------------------------------------------- centre */
+
+    .stage{position:absolute;left:400px;right:400px;top:126px;bottom:96px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;}
+
+    .orb{position:relative;width:376px;height:376px;display:grid;place-items:center;}
+    .halo{position:absolute;width:376px;height:376px;border-radius:50%;
+      background:radial-gradient(closest-side, rgba(143,217,168,.16), rgba(143,217,168,.04) 62%, transparent 76%);
+      filter:blur(6px);animation:breathe 7s ease-in-out infinite;}
+    @keyframes breathe{0%,100%{opacity:.7;transform:scale(.97)}50%{opacity:1;transform:scale(1.03)}}
+    .swarm{width:320px;height:320px;animation:spin 68s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .swarm circle.d{animation:flick 4.6s ease-in-out infinite;}
+    @keyframes flick{0%,100%{opacity:.16}50%{opacity:1}}
+    .core{animation:core 6s ease-in-out infinite;}
+    @keyframes core{0%,100%{opacity:.4}50%{opacity:.8}}
+
+    /* The last thing it said sits on the open ground. Putting a surface behind
+       every piece of content is what made this screen heavy the first time. */
+    .last{max-width:560px;margin-top:16px;text-align:center;font-size:25px;line-height:1.45;
+      font-weight:300;letter-spacing:-0.017em;color:var(--text);}
+    .ago{margin-top:9px;font-size:13px;color:var(--faint);text-align:center;}
+    .ago b{color:var(--soft);font-weight:600;}
+
+    .type{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);
+      padding:10px 22px;border-radius:999px;font-size:13.5px;color:var(--faint);
+      background:rgba(255,255,255,.05);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.10), inset 0 0 0 1px rgba(255,255,255,.045);}
+
+    @media (prefers-reduced-motion: reduce){*{animation:none !important}}
+  </style>
+</helmet>
+<div class="s">
+  <div class="mark">
+    <span class="d"></span>
+    <span>opus voice</span>
+  </div>
+
+  <div class="glass nav">
+    <span class="t on">Library</span>
+    <span class="t">Today</span>
+    <span class="t">Chats</span>
+    <span class="t">Notes</span>
+  </div>
+
+  <div class="sleep">Sleep</div>
+
+  <div class="glass rail l">
+    <div class="rh">
+      <span class="n">Upcoming</span>
+      <span class="c">3 today</span>
+      <span class="go">Calendar</span>
+    </div>
+
+    <div class="list">
+      <div class="m next">
+        <div class="top">
+          <span class="at">11:30</span>
+          <span class="ttl">Fineract interest post-mortem</span>
+        </div>
+        <div class="who">in 18 minutes · 4 people</div>
+        <div class="take">Take notes through it</div>
+      </div>
+
+      <div class="m">
+        <div class="top">
+          <span class="at">14:00</span>
+          <span class="ttl">Nakshatra AMC handover</span>
+        </div>
+        <div class="who">45 minutes · 3 people</div>
+      </div>
+
+      <div class="m">
+        <div class="top">
+          <span class="at">16:30</span>
+          <span class="ttl">Voice pipeline review</span>
+        </div>
+        <div class="who">30 minutes · 2 people</div>
+      </div>
+    </div>
+
+    <div class="soon">Tomorrow — release cut at 10:00, then Fineract triage.</div>
+  </div>
+
+  <div class="stage">
+    <div class="orb">
+      <div class="halo"></div>
+      <svg class="swarm" viewBox="0 0 260 260" fill="none" aria-hidden="true">
+        <circle class="core" cx="130" cy="130" r="34" fill="rgba(143,217,168,0.10)"></circle>
+        <circle class="core" cx="130" cy="130" r="34" stroke="rgba(143,217,168,0.18)" stroke-width="1"></circle>
+        <sc-for list="{{dots}}" as="d" hint-placeholder-count="40">
+          <circle class="d" cx="{{d.cx}}" cy="{{d.cy}}" r="{{d.r}}" fill="rgba(143,217,168,0.85)"
+            opacity="{{d.o}}" style="animation-delay: {{d.delay}}s"></circle>
+        </sc-for>
+      </svg>
+    </div>
+
+    <div class="last">It's the cache — it's rebuilding from scratch every run.</div>
+    <div class="ago">14:06 · say <b>hey falcon</b> to pick it back up</div>
+  </div>
+
+  <div class="glass rail r">
+    <div class="rh">
+      <span class="n">To-do</span>
+      <span class="c">3 open</span>
+      <span class="go">Open</span>
+    </div>
+
+    <div class="list">
+      <div class="t">
+        <span class="o">1.</span>
+        <span class="k">Cache the Maven repo between builds</span>
+        <span class="issue">#421</span>
+      </div>
+      <div class="t">
+        <span class="o">2.</span>
+        <span class="k">Put the Nakshatra migration behind a flag</span>
+      </div>
+      <div class="t">
+        <span class="o">3.</span>
+        <span class="k">Ask about owning the flag flip before Thursday</span>
+      </div>
+    </div>
+
+    <div class="sub">Done today</div>
+    <div class="list">
+      <div class="t done">
+        <span class="o">✓</span>
+        <span class="k">Drop the 0.3s throttle on the level meter</span>
+      </div>
+      <div class="t done">
+        <span class="o">✓</span>
+        <span class="k">Rebuild the recognizer when the mic comes back</span>
+        <span class="issue">#415</span>
+      </div>
+    </div>
+
+    <div class="add">Add a to-do…</div>
+  </div>
+
+  <div class="type">Type instead…</div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    let s = 20260830;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = [];
+    for (let i = 0; i < 130; i++) {
+      const a = i * 2.39996;
+      const band = 48 + rnd() * 40 + 0.22 * 46 * rnd();
+      dots.push({
+        cx: (130 + Math.cos(a) * band).toFixed(1),
+        cy: (130 + Math.sin(a) * band).toFixed(1),
+        r: (0.6 + rnd() * 1.7).toFixed(2),
+        o: (0.14 + rnd() * 0.52).toFixed(2),
+        delay: (rnd() * 4.6).toFixed(2),
+      });
+    }
+    return { dots };
+  }
+}
+</script>
+</body>
+</html>
