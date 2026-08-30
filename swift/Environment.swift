@@ -118,3 +118,19 @@ func shouldReloadWindow(loaded: URL?, current: URL?) -> Bool {
   guard let loaded else { return true }     // never loaded, so load it
   return loaded != current
 }
+
+/// Where the running session says it can be reached.
+///
+/// Read from a 0600 file rather than taken as an argument, because the URL
+/// carries the token that authorises commands, and argv is world-readable: any
+/// process on the machine can lift it out of `ps`.
+func sessionURLOnDisk() -> URL? {
+  let file = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent(".falcon/session.json")
+  guard
+    let data = try? Data(contentsOf: file),
+    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    let text = json["url"] as? String
+  else { return nil }
+  return URL(string: text)
+}

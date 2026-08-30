@@ -390,7 +390,7 @@ loses its reference signal and barge-in starts firing on our own voice.
 streaming-JSON mode for the whole session, so process startup is paid once at launch
 rather than on every question, and history is retained by the session itself.
 
-**`bin/voiceapp`** (Swift, optional) is the window. It draws what `src/bus.mjs` holds
+**`bin/falcon-window`** (Swift, optional) is the window. It draws what `src/bus.mjs` holds
 and posts back what you click. Both surfaces go through `src/view.mjs`, so the
 terminal and the window can never disagree about what was said.
 

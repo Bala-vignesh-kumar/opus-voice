@@ -6,16 +6,12 @@
 
 import AppKit
 import ServiceManagement
-import WebKit
 
 final class MenuBar: NSObject, NSApplicationDelegate {
   private var item: NSStatusItem!
   private var orchestrator: Orchestrator?
   private var launchProblem: LaunchProblem?
-  private var window: NSWindow?
-  /// Held alongside the window so a restarted session can be reloaded into it.
-  private var web: WKWebView?
-  private var loadedURL: URL?
+  private let window = FalconWindow()
   private var stream: Task<Void, Never>?
   private var headphones: RemoteCommandWatcher?
 
@@ -109,12 +105,12 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     showSession()
   }
 
-  /// Points an open window at the current session, if it is not there already.
+  /// Points an open window at the current session. A closed one is left
+  /// closed: a session restarting is not a reason to put a window on somebody's
+  /// screen.
   private func showSession() {
-    guard let web, let url = orchestrator?.sessionURL ?? Self.sessionURLOnDisk() else { return }
-    guard shouldReloadWindow(loaded: loadedURL, current: url) else { return }
-    loadedURL = url
-    web.load(URLRequest(url: url))
+    guard window.isVisible, let url = orchestrator?.sessionURL ?? sessionURLOnDisk() else { return }
+    window.show(session: url)
   }
 
   private func render() {
@@ -242,47 +238,14 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     // Falling back to the file on disk before giving up: the orchestrator's
     // copy can be stale if the session was republished, and a menu item that
     // does nothing at all is the worst outcome available.
-    guard let url = orchestrator?.sessionURL ?? Self.sessionURLOnDisk() else {
+    guard let url = orchestrator?.sessionURL ?? sessionURLOnDisk() else {
       let alert = NSAlert()
       alert.messageText = "No session to show yet"
       alert.informativeText = "Falcon is still starting, or node is not running. Open Log from this menu to see why."
       alert.runModal()
       return
     }
-    if let window {
-      // Reopened, not rebuilt — so this is also the moment to notice that the
-      // session it is showing died while it was closed.
-      showSession()
-      window.makeKeyAndOrderFront(nil)
-      NSApp.activate(ignoringOtherApps: true)
-      return
-    }
-    let config = WKWebViewConfiguration()
-    config.websiteDataStore = .nonPersistent()
-    let web = WKWebView(frame: .zero, configuration: config)
-    web.setValue(false, forKey: "drawsBackground")
-
-    let created = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 760, height: 700),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-      backing: .buffered, defer: false)
-    created.title = "Falcon"
-    created.titlebarAppearsTransparent = true
-    created.titleVisibility = .hidden
-    created.backgroundColor = NSColor(red: 0.051, green: 0.055, blue: 0.067, alpha: 1)
-    created.appearance = NSAppearance(named: .darkAqua)
-    created.minSize = NSSize(width: 480, height: 420)
-    created.contentView = web
-    created.center()
-    created.setFrameAutosaveName("falcon")
-    created.isReleasedWhenClosed = false   // reopened from the menu, not rebuilt
-    created.makeKeyAndOrderFront(nil)
-    window = created
-
-    self.web = web
-    loadedURL = url
-    web.load(URLRequest(url: url))
-    NSApp.activate(ignoringOtherApps: true)
+    window.show(session: url)
   }
 
   @objc private func setMode(_ sender: NSMenuItem) {
@@ -333,17 +296,6 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     NSApp.terminate(nil)
   }
 
-  /// The session as written on disk, for when the in-memory copy is missing.
-  static func sessionURLOnDisk() -> URL? {
-    let file = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent(".falcon/session.json")
-    guard
-      let data = try? Data(contentsOf: file),
-      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let text = json["url"] as? String
-    else { return nil }
-    return URL(string: text)
-  }
 
   // MARK: plumbing
 

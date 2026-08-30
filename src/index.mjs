@@ -782,7 +782,7 @@ async function openWindow() {
     return url;
   }
 
-  const binary = path.join(ROOT, 'bin/voiceapp');
+  const binary = path.join(ROOT, 'bin/falcon-window');
   if (fs.existsSync(binary)) {
     // No arguments: the window reads the session file, because the url carries
     // the token and argv is world-readable.
@@ -792,7 +792,7 @@ async function openWindow() {
     shell.on('exit', () => shutdown(0));
     shell.on('error', () => view.warn(`window failed to open — visit ${url}`));
   } else {
-    view.warn('bin/voiceapp is not built — opening in your browser instead');
+    view.warn('bin/falcon-window is not built — opening in your browser instead');
     spawn('open', [url], { stdio: 'ignore' });
   }
   // Printed so a second window, or a browser, can be pointed at the same

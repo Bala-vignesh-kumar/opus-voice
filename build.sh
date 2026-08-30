@@ -35,18 +35,25 @@ codesign --force --sign - bin/voiceio 2>/dev/null || echo "note: ad-hoc codesign
 
 echo "built bin/voiceio"
 
-# The desktop window. Separate binary because it is optional: the terminal UI
-# works without it, so a failure here must not stop the audio daemon shipping.
-echo "building voiceapp…"
+# The window on its own, for `npm run app`. Separate binary because it is
+# optional: the terminal UI works without it, so a failure here must not stop
+# the audio daemon shipping.
+#
+# FalconWindow.swift is compiled into this and into the app below. One window,
+# two entry points — the duplicate that used to live in VoiceApp.swift had
+# already drifted.
+echo "building falcon-window…"
 if swiftc -O \
-  -o bin/voiceapp \
-  swift/VoiceApp.swift \
+  -o bin/falcon-window \
+  swift/FalconWindow.swift \
+  swift/Environment.swift \
+  swift/WindowMain.swift \
   -framework AppKit \
   -framework WebKit; then
-  codesign --force --sign - bin/voiceapp 2>/dev/null || true
-  echo "built bin/voiceapp"
+  codesign --force --sign - bin/falcon-window 2>/dev/null || true
+  echo "built bin/falcon-window"
 else
-  echo "note: voiceapp did not build — 'npm start' still works, 'npm run app' will open your browser"
+  echo "note: falcon-window did not build — 'npm start' still works, 'npm run app' will open your browser"
 fi
 
 # The menu bar app. Like voiceapp it is optional — the terminal workflow does
@@ -55,9 +62,11 @@ echo "building falcon…"
 if swiftc -O \
   -o bin/falcon \
   swift/MenuBarState.swift \
+  swift/AppLaunch.swift \
   swift/Environment.swift \
   swift/RemoteCommands.swift \
   swift/Orchestrator.swift \
+  swift/FalconWindow.swift \
   swift/FalconApp.swift \
   -framework AppKit \
   -framework WebKit \
