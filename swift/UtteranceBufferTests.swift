@@ -57,6 +57,32 @@ func runUtteranceBufferTests() -> Int {
   g.trimToLast(seconds: 1.0)
   check(abs(g.peak - 0.1) < 0.0001, "peak follows the trim")
 
+  // Cutting to where speech starts, not to a fixed window. A whole previous
+  // utterance sat in front of the real one and got transcribed instead:
+  // "I spoke a lot" came back as "Nice vocal note".
+  let h = UtteranceBuffer(sampleRate: 100, maxSeconds: 30)
+  var audio = [Float]()
+  audio += Array(repeating: 0.9, count: 100)   // an older utterance, 1s
+  audio += Array(repeating: 0.0, count: 200)   // 2s of quiet between them
+  audio += Array(repeating: 0.8, count: 150)   // what was just said, 1.5s
+  h.append(audio)
+  h.trimToSpeech(silence: 0.6, lead: 0.3)
+  let kept = h.take()
+  // 1.5s of speech plus 0.3s of lead-in, and none of the older utterance.
+  check(kept.count >= 150 && kept.count <= 200, "keeps the last utterance and its lead-in, got \(kept.count)")
+
+  // Nothing but silence must not be mistaken for an utterance.
+  let i2 = UtteranceBuffer(sampleRate: 100, maxSeconds: 30)
+  i2.append(Array(repeating: 0.0, count: 300))
+  i2.trimToSpeech()
+  check(i2.take().count == 300, "silence alone is left untouched rather than cut to nothing")
+
+  // One continuous utterance keeps all of itself.
+  let j = UtteranceBuffer(sampleRate: 100, maxSeconds: 30)
+  j.append(Array(repeating: 0.7, count: 250))
+  j.trimToSpeech()
+  check(j.take().count == 250, "a single unbroken utterance is kept whole")
+
   if failures == 0 { print("  ✓ utterance buffer") }
   return failures
 }

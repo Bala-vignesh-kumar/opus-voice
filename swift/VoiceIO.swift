@@ -638,7 +638,7 @@ final class VoiceIO: NSObject {
         // itself and handed the second recognizer the silence after it. This
         // only exists to stop a long idle listen accumulating minutes of room,
         // so it is a ceiling, not a cut.
-        if startingTurn { utterance.trimToLast(seconds: 10.0) }
+        if startingTurn { utterance.trimToLast(seconds: 30.0) }
         emit(["type": "partial", "text": trimmed])
         if shouldBargeIn {
             emit(["type": "bargein"])
@@ -945,6 +945,15 @@ final class VoiceIO: NSObject {
             report = true
         }
         guard report else { return }
+        // Start the next turn's audio here, not at the last turn boundary.
+        //
+        // The buffer used to run from one endpoint to the next, which spans
+        // this app's own answer being spoken aloud. Echo cancellation keeps
+        // that out of the live recognizer, but the buffer still held thirteen
+        // seconds of conversation — so the second recognizer transcribed the
+        // conversation, and returned a different sentence than the one just
+        // said. "I spoke a lot" came back as "Nice vocal note".
+        utterance.reset()
         emit(["type": "speech_end", "interrupted": interrupted])
         drain()
     }

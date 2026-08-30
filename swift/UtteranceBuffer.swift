@@ -76,6 +76,65 @@ final class UtteranceBuffer {
     peak = samples.reduce(0) { Swift.max($0, abs($1)) }
   }
 
+  /// Cuts back to where the current run of speech began.
+  ///
+  /// A fixed window cannot win. Trimming to 1.5s cut the word itself off,
+  /// because the recognizer reports its first partial well after the sound was
+  /// made. Widening it to 10s handed the second recognizer ten seconds of the
+  /// previous conversation, and it duly transcribed that instead — "I spoke a
+  /// lot" came back as "Nice vocal note".
+  ///
+  /// So the cut follows the audio rather than the clock: walk back from the end
+  /// while there is sound, stop at the first real silence, and keep a little
+  /// lead-in so the first consonant survives.
+  ///
+  /// - Parameters:
+  ///   - silence: how much quiet counts as the edge of an utterance.
+  ///   - lead: kept before that edge, because speech begins before it is loud.
+  ///   - floor: relative to this turn's own peak, so a quiet speaker and a loud
+  ///     one are treated the same.
+  func trimToSpeech(silence: Double = 0.6, lead: Double = 0.35, floor: Float = 0.08) {
+    lock.lock(); defer { lock.unlock() }
+    guard !samples.isEmpty else { return }
+
+    let frame = max(1, Int(sampleRate * 0.02))          // 20ms
+    let quietFrames = max(1, Int(silence / 0.02))
+    let threshold = max(peak * floor, 0.004)
+
+    // Frame energies, newest last.
+    var loud: [Bool] = []
+    loud.reserveCapacity(samples.count / frame + 1)
+    var i = 0
+    while i < samples.count {
+      let end = Swift.min(i + frame, samples.count)
+      var m: Float = 0
+      for j in i..<end { m = Swift.max(m, abs(samples[j])) }
+      loud.append(m >= threshold)
+      i = end
+    }
+
+    // Walk back from the end through the speech, stopping at the first stretch
+    // of quiet long enough to be a gap between utterances rather than a breath.
+    var index = loud.count - 1
+    while index >= 0, !loud[index] { index -= 1 }        // trailing silence
+    guard index >= 0 else { return }                     // nothing but silence
+    var run = 0
+    while index >= 0 {
+      run = loud[index] ? 0 : run + 1
+      if run >= quietFrames { break }
+      index -= 1
+    }
+
+    // index sits at the far side of the silence; the speech begins after it.
+    // Cutting at index would keep the whole gap as well as the lead-in.
+    let startFrame = Swift.max(0, index + run)
+    var cut = startFrame * frame - Int(sampleRate * lead)
+    cut = Swift.max(0, Swift.min(cut, samples.count))
+    guard cut > 0 else { return }
+    samples.removeFirst(cut)
+    peak = samples.reduce(0) { Swift.max($0, abs($1)) }
+  }
+
   func reset() {
     lock.lock(); defer { lock.unlock() }
     samples = []
