@@ -18,6 +18,7 @@
     "siri": "./scripts/siri-setup.sh",
     "test:node": "node --test 'test/*.test.mjs'",
     "bundle": "./scripts/bundle.sh",
+    "icon": "swift scripts/make-icon.swift /tmp/Falcon.iconset && iconutil -c icns -o assets/Falcon.icns /tmp/Falcon.iconset",
     "install-whisper": "./scripts/install-whisper.sh"
   }
 }

@@ -32,6 +32,8 @@ fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp bin/falcon "$APP/Contents/MacOS/Falcon"
+mkdir -p "$APP/Contents/Resources"
+cp assets/Falcon.icns "$APP/Contents/Resources/Falcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -42,6 +44,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>Falcon</string>
   <key>CFBundleDisplayName</key><string>Falcon</string>
   <key>CFBundleExecutable</key><string>Falcon</string>
+  <key>CFBundleIconFile</key><string>Falcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
@@ -78,6 +81,7 @@ check() {
 
 printf '\n'
 check "the binary is in place" test -x "$APP/Contents/MacOS/Falcon"
+check "the icon is in place" test -f "$APP/Contents/Resources/Falcon.icns"
 check "the repo path is recorded" /usr/libexec/PlistBuddy -c "Print :FalconRepoRoot" "$APP/Contents/Info.plist"
 check "the node path is recorded" /usr/libexec/PlistBuddy -c "Print :FalconNodePath" "$APP/Contents/Info.plist"
 check "the signature verifies" codesign --verify --deep "$APP"
