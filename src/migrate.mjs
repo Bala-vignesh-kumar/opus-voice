@@ -35,10 +35,15 @@ const NEW_ROLE = 'falcon';
 export function migrate({ from = OLD_DIR, to = NEW_DIR } = {}) {
   const idle = { migrated: false, chats: 0, hook: false, problem: null };
 
-  // The new directory existing means this already ran, or the app has been
-  // running under the new name all along. Either way its contents are current
+  // Conversations already in the new directory mean this has run, or the app
+  // has been living under the new name all along. Either way those are current
   // and the old ones are not, so copying over them would be a downgrade.
-  if (!exists(from) || exists(to)) return idle;
+  //
+  // Whether the *directory* exists is a different question, and answering that
+  // one instead skips the migration permanently: Trigger creates this directory
+  // eagerly to hold the wake file, so an empty one is the ordinary state on a
+  // first run rather than evidence that anything has happened in it.
+  if (!exists(from) || hasChats(to)) return idle;
 
   try {
     fs.mkdirSync(to, { recursive: true });
@@ -48,6 +53,11 @@ export function migrate({ from = OLD_DIR, to = NEW_DIR } = {}) {
   } catch (err) {
     return { ...idle, problem: err.message };
   }
+}
+
+/** Whether a directory already holds conversations worth keeping. */
+function hasChats(dir) {
+  return readdir(path.join(dir, 'chats')).length > 0;
 }
 
 /**
@@ -121,6 +131,10 @@ function renamed(body) {
 function copyHook(from, to) {
   const source = path.join(from, 'wake.sh');
   if (!isFile(source)) return false;
+  // A hook already here was written against this location and is already
+  // correct. It may also have been edited by hand, and replacing somebody's
+  // working script with a rewrite of an older one is not an improvement.
+  if (isFile(path.join(to, 'wake.sh'))) return false;
 
   const script = fs.readFileSync(source, 'utf8').split(from).join(to);
   fs.writeFileSync(path.join(to, 'wake.sh'), script, { mode: 0o755 });

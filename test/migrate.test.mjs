@@ -25,16 +25,43 @@ test('does nothing when there is no old directory', () => {
   assert.equal(fs.existsSync(to), false);
 });
 
-test('does nothing when the new directory already exists', () => {
+test('does nothing when the new directory already holds conversations', () => {
   const { from, to } = beds();
-  fs.mkdirSync(from, { recursive: true });
-  fs.mkdirSync(to, { recursive: true });
-  chat(from, '1406-a.json', [{ role: 'you', text: 'hello' }]);
+  chat(from, '1406-a.json', [{ role: 'you', text: 'from the old life' }]);
+  chat(to, '1406-a.json', [{ role: 'you', text: 'already here' }]);
 
   const result = migrate({ from, to });
   assert.equal(result.migrated, false);
   // The new directory is the one in use; it must not be written over.
-  assert.equal(fs.existsSync(path.join(to, 'chats')), false);
+  const kept = JSON.parse(fs.readFileSync(path.join(to, 'chats', '2026-08-30', '1406-a.json'), 'utf8'));
+  assert.equal(kept.turns[0].text, 'already here');
+});
+
+test('migrates into a new directory that exists but is empty', () => {
+  const { from, to } = beds();
+  chat(from, '1406-a.json', [{ role: 'opus', text: 'the cache is cold.' }]);
+  // Trigger creates this eagerly to hold the wake file, so an empty directory
+  // is the ordinary state on a first run — not evidence the migration ran.
+  fs.mkdirSync(to, { recursive: true });
+  fs.writeFileSync(path.join(to, 'wake'), '12345\n');
+
+  const result = migrate({ from, to });
+
+  assert.equal(result.migrated, true);
+  assert.equal(result.chats, 1);
+});
+
+test('leaves a hook that is already in the new directory alone', () => {
+  const { from, to } = beds();
+  chat(from, '1406-a.json', [{ role: 'you', text: 'hello' }]);
+  fs.writeFileSync(path.join(from, 'wake.sh'), `# old\nprintf x > "${from}/wake"\n`, { mode: 0o755 });
+  fs.mkdirSync(to, { recursive: true });
+  fs.writeFileSync(path.join(to, 'wake.sh'), '# theirs, already pointed here\n', { mode: 0o755 });
+
+  const result = migrate({ from, to });
+
+  assert.equal(result.hook, false);
+  assert.equal(fs.readFileSync(path.join(to, 'wake.sh'), 'utf8'), '# theirs, already pointed here\n');
 });
 
 test('copies conversations across and leaves the old directory as a backup', () => {
