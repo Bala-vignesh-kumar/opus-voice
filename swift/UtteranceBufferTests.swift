@@ -49,6 +49,14 @@ func runUtteranceBufferTests() -> Int {
   f.trimToLast(seconds: 5.0)
   check(f.take() == [1, 2], "trimming to more than exists keeps everything")
 
+  // peak must describe the audio that is actually left. It reported 0.206 for
+  // a turn whose kept audio peaked at 0.011, and that gap is what revealed the
+  // trim was throwing the speech away.
+  let g = UtteranceBuffer(sampleRate: 4, maxSeconds: 30)
+  g.append([0.9, 0.9, 0.1, 0.1, 0.1, 0.1])
+  g.trimToLast(seconds: 1.0)
+  check(abs(g.peak - 0.1) < 0.0001, "peak follows the trim")
+
   if failures == 0 { print("  ✓ utterance buffer") }
   return failures
 }

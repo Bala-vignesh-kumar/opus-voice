@@ -68,9 +68,12 @@ final class UtteranceBuffer {
   func trimToLast(seconds: Double) {
     lock.lock(); defer { lock.unlock() }
     let keep = Int(sampleRate * seconds)
-    if samples.count > keep {
-      samples.removeFirst(samples.count - keep)
-    }
+    guard samples.count > keep else { return }
+    samples.removeFirst(samples.count - keep)
+    // Recompute, or peak keeps describing audio that is no longer here. The
+    // two numbers disagreeing — a turn reported at peak 0.206 whose audio was
+    // measurably silent — is what exposed this trim discarding the speech.
+    peak = samples.reduce(0) { Swift.max($0, abs($1)) }
   }
 
   func reset() {

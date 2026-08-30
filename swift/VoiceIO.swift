@@ -633,7 +633,12 @@ final class VoiceIO: NSObject {
         guard !partial.isEmpty else { return }
         // A little is kept, not none: speech begins before the recognizer
         // notices it, and cutting at exactly this instant loses the first word.
-        if startingTurn { utterance.trimToLast(seconds: 1.5) }
+        // Generous, because the recognizer reports its first words well after
+        // they were spoken — trimming to a second and a half cut the word
+        // itself and handed the second recognizer the silence after it. This
+        // only exists to stop a long idle listen accumulating minutes of room,
+        // so it is a ceiling, not a cut.
+        if startingTurn { utterance.trimToLast(seconds: 10.0) }
         emit(["type": "partial", "text": trimmed])
         if shouldBargeIn {
             emit(["type": "bargein"])
