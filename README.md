@@ -508,6 +508,10 @@ To allow file edits but not arbitrary shell commands, set
 npm test
 ```
 
+If you are changing this rather than using it, start with `CLAUDE.md` for the
+rules and `docs/DECISIONS.md` for the measurements behind them — several
+settings here look arbitrary and are not.
+
 Covers the sentence chunker (streaming boundaries, abbreviations and decimals,
 markdown stripping, never speaking the inside of a code block), wake phrase
 matching (mishearings, mode commands, false-wake resistance), the conversation
