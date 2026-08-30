@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:node)",
+      "Bash(node --test:*)",
+      "Bash(./build.sh)",
+      "Bash(./scripts/test-swift.sh)",
+      "Bash(./scripts/bundle.sh)",
+      "Bash(./scripts/doctor.sh)",
+      "Bash(./scripts/measure-whisper.sh:*)",
+      "Bash(swiftc:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(git grep:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(du:*)",
+      "Bash(file:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(sed -n:*)",
+      "Bash(which:*)",
+      "Bash(echo:*)",
+
+      "Bash(ps:*)",
+      "Bash(pgrep:*)",
+      "Bash(lsof:*)",
+      "Bash(system_profiler:*)",
+      "Bash(/usr/bin/log show:*)",
+      "Bash(shortcuts list)",
+      "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(curl -sN http://127.0.0.1:*)",
+
+      "Bash(open -a \"Opus Voice\")",
+      "Bash(pkill -f \"Opus Voice.app\")",
+      "Bash(pkill -f \"src/index.mjs\")",
+      "Bash(pkill -f \"bin/voiceio\")",
+      "Bash(pkill -f whisper_server)",
+      "Bash(pkill -f piper_server)"
+    ]
+  }
+}
