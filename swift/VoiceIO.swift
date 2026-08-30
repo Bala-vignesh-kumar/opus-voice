@@ -379,7 +379,18 @@ final class VoiceIO: NSObject {
         // headphones there is no acoustic path back, so it is paid for nothing.
         // Turn it on with "echoCancellation": true if you use the laptop
         // speakers, where without it the app hears itself and interrupts.
-        if echoCancellation {
+        // Refused outright on bluetooth headphones, whatever config.json says.
+        // Voice processing is a duplex path, duplex means SCO, and in SCO a stem
+        // squeeze is "end call" rather than play/pause — so switching this on
+        // silently disables the headphone wake. See EchoPolicy.swift; it has
+        // cost five separate debugging sessions.
+        let bluetoothOut = InputDevice.systemDefaultOutput().map(InputDevice.isBluetooth) ?? false
+        let echo = echoDecision(requested: echoCancellation, outputIsBluetoothHeadset: bluetoothOut)
+        if let warning = echo.warning {
+            emit(["type": "warn", "message": warning])
+        }
+        echoCancellation = echo.enable
+        if echo.enable {
             do {
                 try input.setVoiceProcessingEnabled(true)
             } catch {

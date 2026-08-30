@@ -59,6 +59,23 @@ enum InputDevice {
     return status == noErr && device != 0 ? device : nil
   }
 
+  /// The device the answer is played through.
+  ///
+  /// The output, not the input, is what decides whether echo cancellation is
+  /// safe: a duplex audio path puts *these* into call mode, and in call mode a
+  /// stem pinch stops being play/pause. See EchoPolicy.swift.
+  static func systemDefaultOutput() -> AudioDeviceID? {
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain)
+    var device = AudioDeviceID(0)
+    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    let status = AudioObjectGetPropertyData(
+      AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device)
+    return status == noErr && device != 0 ? device : nil
+  }
+
   /// Makes `device` the system's input. Returns whether it took.
   ///
   /// System-wide rather than per-app on purpose: routing this app's engine to a

@@ -20,5 +20,6 @@ swiftc -o "$out" \
   swift/UtteranceBuffer.swift swift/UtteranceBufferTests.swift \
   swift/AppLaunch.swift swift/AppLaunchTests.swift \
   swift/RemoteCommands.swift swift/RemoteCommandsTests.swift \
+  swift/EchoPolicy.swift swift/EchoPolicyTests.swift \
   swift/TestMain.swift
 "$out"

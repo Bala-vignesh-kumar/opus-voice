@@ -115,6 +115,51 @@ leaves the previous page's `EventSource` retrying with a dead token, and its
 
 ---
 
+## When the headphone squeeze stops working
+
+This one has been diagnosed from scratch five times. Read this before doing it
+a sixth.
+
+**The bud has to be in A2DP.** In SCO — the narrowband hands-free call mode — a
+stem pinch means "end call", not play/pause, so no AVRCP command is emitted at
+all. Nothing reaches macOS and nothing can reach this app. The squeeze does not
+fail; it never happens, and every log on our side stays silent, which reads
+exactly like the app being broken.
+
+**What puts it in SCO:** any duplex audio path — an audio unit that takes the
+microphone as well as the speaker. `setVoiceProcessingEnabled(true)`, i.e.
+`"echoCancellation": true`, is one. An `AVAudioEngine`-based keepalive is
+another, which is why `Keepalive.swift` is a plain `AVAudioPlayer`. Both are now
+guarded: see `EchoPolicy.swift`, which refuses the combination outright.
+
+**How to tell in ten seconds**, without touching the code:
+
+```bash
+log show --last 1m --predicate 'eventMessage CONTAINS "HFP LinkQualityReport"' | wc -l
+```
+
+A steady stream of those (roughly one a second) means SCO is up and the squeeze
+cannot work. Zero means A2DP and it should. `AStS SCO` versus `AStS A2DP` in the
+Bluetooth device dump says the same thing.
+
+**Then work outward in this order** — each step has its own evidence, so you
+never have to guess which half is broken:
+
+| Question | Where the answer is |
+|---|---|
+| Did the bud emit anything? | `HFP LinkQualityReport` / `AStS` above |
+| Did the app receive it? | `headphone command:` in the app log — logged for *every* command, bound or not |
+| Did the app act? | `woke by headphone squeeze` |
+| Did the file get poked? | `~/.falcon/wake` mtime |
+| Did node react? | `woken from outside` in the log |
+| Did the mode change? | `mode` on the `/events` stream |
+
+Also worth knowing: a squeeze wakes **silently** by default (`wakeAck` is empty)
+and lands in `awake`, which sleeps again after `awakeTimeoutMs`. Clicking
+Discuss says "sure, let's talk." out loud and lands in `chat`, which never
+sleeps. So a working squeeze and a broken one can feel identical if you are not
+looking at the screen.
+
 ## Where to look when it breaks
 
 | | |
