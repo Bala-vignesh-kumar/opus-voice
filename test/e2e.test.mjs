@@ -31,8 +31,10 @@ class App {
     this.hook = hook ?? path.join(ROOT, 'package.json');
     this.dir = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'opus-e2e-'));
     this.log = path.join(this.dir, 'asked.log');
+    this.spokenLog = path.join(this.dir, 'spoken.log');
     this.inject = path.join(this.dir, 'speech.txt');
     fs.writeFileSync(this.log, '');
+    fs.writeFileSync(this.spokenLog, '');
     this.out = '';
     this.child = spawn(process.execPath, [
       path.join(ROOT, 'src', 'index.mjs'),
@@ -54,6 +56,7 @@ class App {
         OPUS_VOICE_CLAUDE_BIN: path.join(STUBS, 'claude.mjs'),
         STUB_CLAUDE_LOG: this.log,
         STUB_VOICE_INJECT: this.inject,
+        STUB_VOICE_SPOKEN: this.spokenLog,
         ...(this.wakeFile ? { OPUS_VOICE_WAKE_FILE: this.wakeFile } : {}),
         OPUS_VOICE_WAKE_HOOK: this.hook,
         OPUS_VOICE_IGNORE_CONFIG: '1',
@@ -98,6 +101,11 @@ class App {
       await new Promise((r) => setTimeout(r, 25));
     }
     throw new Error(`Claude was never asked ${JSON.stringify(needle)}\n--- asked ---\n${JSON.stringify(this.asked(), null, 2)}`);
+  }
+
+  /** Everything it said out loud, in order. */
+  spoken() {
+    return fs.readFileSync(this.spokenLog, 'utf8').split('\n').filter(Boolean);
   }
 
   /** Everything that was actually sent to Claude, in order. */
@@ -503,8 +511,14 @@ test('the wake file opens the microphone and wakes it', async () => {
     fs.writeFileSync(wake, `${Date.now()}`);
 
     await app.waitForMode('awake');
-    assert.ok(app.out.includes('woken by Siri'));
+    assert.ok(app.out.includes('woken from outside'));
     assert.ok(app.out.includes('microphone open'), 'the mic was taken back');
+
+    // Silently. This wake came from a button, and whoever pressed it already
+    // knows they did — an acknowledgement lands on top of their first words,
+    // because someone who presses a button to talk starts talking at once.
+    await app.settle();
+    assert.deepEqual(app.spoken(), [], 'a button wake must not speak over you');
   } finally { app.stop(); }
 });
 

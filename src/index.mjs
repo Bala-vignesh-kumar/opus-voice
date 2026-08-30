@@ -446,7 +446,33 @@ voice.on('partial', (text) => {
 
 // The audio behind the turn, kept only until its `final` arrives.
 let lastUtterance = null;
-voice.on('utterance', (event) => { lastUtterance = event; });
+voice.on('utterance', (event) => {
+  lastUtterance = event;
+  // OPUS_VOICE_DUMP_AUDIO=/tmp/dump writes each turn's audio as a wav, so what
+  // the second recognizer was actually handed can be listened to rather than
+  // reasoned about.
+  if (process.env.OPUS_VOICE_DUMP_AUDIO) dumpUtterance(event);
+});
+
+/** Writes one turn's audio to <prefix>-N.wav. Debug only. */
+let dumpCount = 0;
+function dumpUtterance(event) {
+  const samples = new Float32Array(Buffer.from(event.pcm, 'base64').buffer.slice(0));
+  const rate = event.sampleRate || 16000;
+  const pcm16 = Buffer.alloc(samples.length * 2);
+  for (let i = 0; i < samples.length; i += 1) {
+    pcm16.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(samples[i] * 32767))), i * 2);
+  }
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0); header.writeUInt32LE(36 + pcm16.length, 4); header.write('WAVE', 8);
+  header.write('fmt ', 12); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22); header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(rate * 2, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
+  header.write('data', 36); header.writeUInt32LE(pcm16.length, 40);
+  const file = `${process.env.OPUS_VOICE_DUMP_AUDIO}-${++dumpCount}.wav`;
+  fs.writeFileSync(file, Buffer.concat([header, pcm16]));
+  view.note(`audio dumped to ${file} (${(samples.length / rate).toFixed(1)}s, peak ${event.peak?.toFixed(3)})`);
+}
 
 voice.on('final', async (text) => {
   view.clearLive();
@@ -681,8 +707,15 @@ async function openWindow() {
 const trigger = new Trigger();
 trigger.on('wake', () => {
   if (mode === MODE.NOTE) return;
-  view.note('woken by Siri');
-  if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, 'yes?');
+  view.note('woken from outside');
+  // Silent on purpose. This wake came from a button — a squeeze, a Shortcut, a
+  // hotkey — and whoever pressed it already knows they did. Saying "yes?" back
+  // lands on top of the first words out of their mouth, because a person who
+  // presses a button to talk starts talking immediately.
+  //
+  // Speaking still makes sense for the spoken wake phrase, which stays as it
+  // was: there, "yes?" is what tells you it heard its name.
+  if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, config.wakeAck || null);
   else armSleep();
 });
 

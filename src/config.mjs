@@ -27,6 +27,7 @@ export const DEFAULTS = {
   fillerDelayMs: 250,       // grace period before the "let me think" beat
   wakeWord: true,           // require the wake phrase before it answers anything
   wakePhrase: 'hey falcon', // two words on purpose — see src/wake.mjs
+  wakeAck: '',              // spoken when woken by a button; empty = wake silently
   awakeTimeoutMs: 30000,    // silence in awake or chat mode before it sleeps again
   greeting: 'Say hey falcon when you need me.',
   showIgnored: false,       // record speech heard while asleep in the transcript

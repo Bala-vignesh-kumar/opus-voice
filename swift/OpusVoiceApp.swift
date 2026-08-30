@@ -18,6 +18,10 @@ final class MenuBar: NSObject, NSApplicationDelegate {
 
   private var mode = "asleep"
   private var status: String?
+  /// The last few things said, so the menu can show the conversation when no
+  /// window is open. Without this the menu bar reports a mode and nothing else,
+  /// and a whole exchange can happen with nothing on screen to show for it.
+  private var recent: [(who: String, text: String)] = []
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.setActivationPolicy(.accessory)   // menu bar only, no dock icon
@@ -115,6 +119,7 @@ final class MenuBar: NSObject, NSApplicationDelegate {
             // A snapshot carries both; a patch carries whichever changed.
             if let mode = json["mode"] as? String { self.mode = mode }
             if json.keys.contains("status") { self.status = json["status"] as? String }
+            self.absorb(json)
             self.render()
           }
         }
@@ -122,6 +127,25 @@ final class MenuBar: NSObject, NSApplicationDelegate {
         // Cancelled, or the server went away. Either way there is nothing to say.
       }
     }
+  }
+
+  /// Pulls conversation lines out of a snapshot or a patch. The bus sends a
+  /// whole `entries` array to a client that connects late, and single `entry`
+  /// objects after that.
+  private func absorb(_ json: [String: Any]) {
+    var incoming: [[String: Any]] = []
+    if let entries = json["entries"] as? [[String: Any]] { recent = []; incoming = entries }
+    if let entry = json["entry"] as? [String: Any] { incoming = [entry] }
+    for entry in incoming {
+      guard
+        let kind = entry["type"] as? String,
+        kind == "you" || kind == "opus",
+        let text = entry["text"] as? String,
+        !text.isEmpty
+      else { continue }
+      recent.append((who: kind == "you" ? "you" : "opus", text: text))
+    }
+    if recent.count > 6 { recent.removeFirst(recent.count - 6) }
   }
 
   // MARK: menu
@@ -138,6 +162,23 @@ final class MenuBar: NSObject, NSApplicationDelegate {
       menu.addItem(withTitle: "Quit opus voice", action: #selector(quit), keyEquivalent: "q").target = self
       return menu
     }
+
+    // The conversation, so a whole exchange can happen with the window closed
+    // and still leave something to look at.
+    if recent.isEmpty {
+      let empty = NSMenuItem(title: "Nothing said yet", action: nil, keyEquivalent: "")
+      empty.isEnabled = false
+      menu.addItem(empty)
+    } else {
+      for line in recent {
+        let trimmed = line.text.count > 60 ? String(line.text.prefix(59)) + "…" : line.text
+        let item = NSMenuItem(title: "\(line.who == "you" ? "you" : "opus")   \(trimmed)",
+                              action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        menu.addItem(item)
+      }
+    }
+    menu.addItem(.separator())
 
     menu.addItem(withTitle: "Open Window", action: #selector(openWindow), keyEquivalent: "o").target = self
     menu.addItem(.separator())
@@ -166,7 +207,16 @@ final class MenuBar: NSObject, NSApplicationDelegate {
   }
 
   @objc private func openWindow() {
-    guard let url = orchestrator?.sessionURL else { return }
+    // Falling back to the file on disk before giving up: the orchestrator's
+    // copy can be stale if the session was republished, and a menu item that
+    // does nothing at all is the worst outcome available.
+    guard let url = orchestrator?.sessionURL ?? Self.sessionURLOnDisk() else {
+      let alert = NSAlert()
+      alert.messageText = "No session to show yet"
+      alert.informativeText = "opus voice is still starting, or node is not running. Open Log from this menu to see why."
+      alert.runModal()
+      return
+    }
     if let window {
       window.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)
@@ -244,6 +294,18 @@ final class MenuBar: NSObject, NSApplicationDelegate {
 
   @objc private func quit() {
     NSApp.terminate(nil)
+  }
+
+  /// The session as written on disk, for when the in-memory copy is missing.
+  static func sessionURLOnDisk() -> URL? {
+    let file = FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent(".opus-voice/session.json")
+    guard
+      let data = try? Data(contentsOf: file),
+      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let text = json["url"] as? String
+    else { return nil }
+    return URL(string: text)
   }
 
   // MARK: plumbing

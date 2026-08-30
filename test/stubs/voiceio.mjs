@@ -53,6 +53,11 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
   let command;
   try { command = JSON.parse(line); } catch { return; }
   if (command.cmd === 'speak') {
+    // Recorded so tests can assert on what was said aloud, which is otherwise
+    // invisible: the terminal view prints a spinner, not the words.
+    if (process.env.STUB_VOICE_SPOKEN) {
+      fs.appendFileSync(process.env.STUB_VOICE_SPOKEN, `${command.text}\n`);
+    }
     emit({ type: 'speech_start', text: command.text });
     emit({ type: 'speech_end', interrupted: false });
   }
