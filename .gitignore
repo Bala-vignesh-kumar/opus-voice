@@ -13,7 +13,11 @@ notes/
 .DS_Store
 
 # Diagnostics bundle from ./scripts/doctor.sh — yours to send, not the repo's.
+# The old name is still ignored because a bundle collected before the rename is
+# still sitting in people's checkouts, and renaming only the pattern is how one
+# of them got committed.
 falcon-diagnostics.txt
+opus-voice-diagnostics.txt
 
 # Your to-do list for whatever project you are talking about, not the repo's.
 todos.json
