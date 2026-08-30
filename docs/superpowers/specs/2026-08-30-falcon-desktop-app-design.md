@@ -34,8 +34,13 @@ These were settled in conversation and are not reopened here.
 squeeze is handled inside the Swift app, so summoning a window is a direct
 in-process call. A Siri wake arrives in node through `trigger.mjs`, which has no
 route back to a Swift window — and you say "hey siri, falcon" precisely when you
-are not at the screen. Keeping it invisible means **this step changes no node
-code at all**, which removes most of its risk.
+are not at the screen. Keeping it invisible means **no node behaviour changes**,
+which removes most of the risk.
+
+One line of node does change, and only because the binary is being renamed:
+`src/index.mjs` spawns `bin/voiceapp` by path, and that becomes
+`bin/falcon-window`. Nothing tests that spawn — the e2e suite runs with
+`--spawn-window false` — so manual check 10 below exists to cover it.
 
 ---
 
@@ -284,6 +289,8 @@ touching.
    text field.
 8. ⌘Q quits: the menu bar item goes, node stops, the microphone is released.
 9. The icon reads correctly in the dock, ⌘-Tab, and at 16pt in Finder.
+10. `npm run app` still opens a window — the renamed binary's one caller in
+    `src/index.mjs` is not covered by any test.
 
 ---
 
