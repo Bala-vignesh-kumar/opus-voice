@@ -7,6 +7,16 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const DEFAULTS = {
+  // 'claude' answers with the local CLI: it can read the project you point it
+  // at, and every word stays on the machine. 'gateway' answers with a hosted
+  // chat model — faster, always available, but it has no tools, so it cannot
+  // look at your code, and what you say is sent off the box. The first hard
+  // rule in CLAUDE.md is why that one is opt-in and not the default.
+  backend: 'claude',
+  gatewayUrl: 'https://api.experientiallabs.ai/v1',
+  gatewayModel: 'gpt-6-astra',
+  // The key is read from EXPLABS_API_KEY and never from here: config.json is
+  // somebody's real machine config, and a key in a file gets committed one day.
   model: 'opus',
   effort: 'medium',
   dir: '',                  // project it works in; empty = where you launched it
@@ -31,6 +41,7 @@ export const DEFAULTS = {
   endpointFastMs: 400,      // silence needed when you clearly finished a sentence
   bargeInWords: 2,          // words needed to interrupt, guards against stray noise
   fillerDelayMs: 250,       // grace period before the "let me think" beat
+  echoWindowMs: 8000,       // how long it stays suspicious of its own voice
   wakeWord: true,           // require the wake phrase before it answers anything
   wakePhrase: 'hey falcon', // two words on purpose — see src/wake.mjs
   wakeAck: '',              // spoken when woken by a button; empty = wake silently

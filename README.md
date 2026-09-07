@@ -197,6 +197,29 @@ Privacy & Security.
 
 Requires macOS, Node 18+, the Swift toolchain (Xcode command line tools), and a
 working `claude` CLI. No API key — it uses the Claude Code auth you already have.
+(The optional hosted backend below is the one exception, and it is off by default.)
+
+### Answering with a hosted model instead
+
+`--backend gateway` answers with a hosted chat model over HTTP rather than the
+local CLI. It is faster to first word, needs no CLI running, and gives you any
+model the endpoint serves:
+
+```bash
+export EXPLABS_API_KEY=xpl_...
+node src/index.mjs --backend gateway --gateway-model gpt-5.4
+```
+
+**Two things you give up, and they are not small.** The hosted model has no
+tools, so it cannot read your project — ask it why the wake word is dropping and
+it will guess, where the CLI goes and reads `wake.mjs`. And what you say leaves
+the machine: your words go to whoever runs the endpoint. Everything else in
+Falcon is local by design, and this is the one door out of that. It stays shut
+unless you open it, and Falcon says so out loud at startup when you do.
+
+Any OpenAI-compatible endpoint works — point `gatewayUrl` at your own. The key
+is read from `EXPLABS_API_KEY` in the environment and is never read from
+`config.json`.
 
 Install it somewhere with a short path, like `~/falcon`. The speech engine
 keeps its data path in a fixed 160-character buffer, and an install buried deep
@@ -430,6 +453,9 @@ three independent guards against it interrupting itself.
 
 | key | default | what it does |
 |---|---|---|
+| `backend` | `claude` | `claude` (local CLI, reads your code) or `gateway` (hosted model — see below) |
+| `gatewayModel` | `gpt-6-astra` | model name, when `backend` is `gateway` |
+| `gatewayUrl` | Experiential Labs | any OpenAI-compatible `/v1` endpoint |
 | `model` | `opus` | any alias the `claude` CLI accepts |
 | `effort` | `medium` | `low` is noticeably snappier, `high` thinks longer |
 | `stt` | `whisper` | `whisper` (local, better on accents) or `apple` |
