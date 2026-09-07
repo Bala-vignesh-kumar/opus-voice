@@ -49,6 +49,46 @@ comparing against macOS Dictation, which does not use it.
 **So:** off by default. `"echoCancellation": true` turns it back on, and is only
 worth it when the answer plays through speakers the microphone can hear.
 
+### Through laptop speakers it answers itself, and needs guarding twice
+
+The condition the line above describes actually happened, on 4 Sep 2026: output
+on the MacBook speakers, input on the built-in microphone, echo cancellation
+off. Every noise the app made came back down its own microphone about two
+seconds later and was taken for a question.
+
+**Measured**, from `~/.falcon/falcon.log` — `···` is the live partial:
+
+```
+··· Sure  ··· Sure, let's  ··· Sure, let's talk.   <- its own Discuss reply
+you  How is falcon?                               <- a real turn
+··· H  ··· Hang  ··· Hang on.                     <- its own thinking beat
+you  Hang on.                                     <- asked back as a question
+```
+
+Nothing already in the app could have caught it. The peak floor in
+`transcript-guard.mjs` is 0.02 and its own voice arrived between 0.029 and
+0.393; the stock-phrase list there is aimed at what Whisper invents out of
+silence and holds one of the app's own phrases only by coincidence. Worse,
+`bargeInWords` is 2 and "hang on" is two words, so its own beat also counted as
+the user interrupting: it cut itself off to listen to itself.
+
+**So:** two guards, because each covers what the other cannot.
+
+1. `"echoCancellation": true` — what this setting is for, and `EchoPolicy`
+   already permits it when output is not a headset. It costs recognition
+   accuracy, and note that the decision is made once in `setupAudio()`:
+   `watchRoute()` restarts the keepalive but never re-runs `echoDecision`, so
+   moving output to AirPods **after** launch leaves the duplex path open and
+   the squeeze dead.
+2. `src/echo-guard.mjs` — the app knows exactly what it just said, and refuses
+   a transcript that is a run of words out of it within `echoWindowMs`. Fed
+   from `speaker.emit('said')` rather than from the seventeen callers of
+   `speaker.say`. It also stops the app taking its own "going to sleep." for an
+   instruction, and stops its own voice counting as barge-in.
+
+Guard 2 is the one that still works on bluetooth output, where guard 1 is
+refused outright.
+
 ### An AirPods squeeze needs an audio stream to exist
 
 **The most expensive finding in the project.** AirPods only emit an AVRCP

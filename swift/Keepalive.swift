@@ -19,6 +19,22 @@ import AVFoundation
 final class Keepalive {
     private var player: AVAudioPlayer?
 
+    /// Said out loud when the stream cannot be held open.
+    ///
+    /// Every failure here used to return silently, which made this the one part
+    /// of the squeeze with no evidence at all: no stream means the bud never
+    /// emits a media command, so the symptom is an app that is listening
+    /// perfectly and never hears a squeeze — indistinguishable from three other
+    /// causes. Whether it is running is now a fact rather than an assumption.
+    var onProblem: ((String) -> Void)?
+
+    /// Said out loud when it *can* be held open — deliberately not `onProblem`.
+    ///
+    /// A warning stream that fires on success is a warning stream you stop
+    /// reading, and this one has to stay worth reading: `restart()` runs on
+    /// every route change, so it speaks whenever headphones come or go.
+    var onNote: ((String) -> Void)?
+
     /// A one-second 8 kHz mono WAV of pure zeroes, built in memory so there is
     /// no asset to ship, find at runtime, or get wrong in a bundle.
     private static func silentWAV(seconds: Int = 1) -> Data {
@@ -41,13 +57,24 @@ final class Keepalive {
     /// Starts the stream. Safe to call again; a second call does nothing.
     func start() {
         guard player == nil else { return }
-        guard let made = try? AVAudioPlayer(data: Keepalive.silentWAV()) else { return }
+        guard let made = try? AVAudioPlayer(data: Keepalive.silentWAV()) else {
+            onProblem?("keepalive: could not build the silent stream — the headphone squeeze will not work")
+            return
+        }
         made.numberOfLoops = -1
         // Zero, not merely quiet: this must never be heard, and it must never
         // give echo cancellation anything to chase.
         made.volume = 0
-        guard made.prepareToPlay(), made.play() else { return }
+        guard made.prepareToPlay() else {
+            onProblem?("keepalive: the silent stream would not prepare — the headphone squeeze will not work")
+            return
+        }
+        guard made.play() else {
+            onProblem?("keepalive: the silent stream would not start — the headphone squeeze will not work")
+            return
+        }
         player = made
+        onNote?("keepalive: silent stream open, so a squeeze has something to control")
     }
 
     func stop() {

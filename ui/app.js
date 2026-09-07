@@ -13,9 +13,7 @@ const token = new URLSearchParams(location.search).get('k') ?? '';
 const linkDot = document.getElementById('link-dot');
 const stateEl = document.getElementById('state');
 const stateLabel = document.getElementById('state-label');
-const sayEl = document.getElementById('say');
-const hintEl = document.getElementById('hint');
-const stage = document.getElementById('stage');
+const chatEl = document.getElementById('chat');
 const input = document.getElementById('input');
 const meetingsEl = document.getElementById('meetings');
 const todosEl = document.getElementById('todos');
@@ -30,15 +28,18 @@ const browseSearch = document.getElementById('browse-search');
 const browseList = document.getElementById('browse-list');
 const browseRead = document.getElementById('browse-read');
 const canvas = document.getElementById('field');
-const halo = document.getElementById('halo');
 
 let entries = [];
+// Bumped whenever the list of turns itself changes. A paint driven by anything
+// else — a partial several times a second, a status, the mode — then leaves the
+// rows alone, because rebuilding them takes any text selection with it.
+let revision = 0;
+let painted = -1;
 let mode = 'asleep';
 let status = null;
 let speaking = false;
 let partial = '';
 let todos = [];
-let phrase = 'hey falcon';
 let hint = '"hey falcon"';
 let showDone = false;
 let level = { in: 0, out: 0 };
@@ -59,17 +60,21 @@ function kind() {
   return 'idle';
 }
 
-function lastOf(role) {
-  for (let i = entries.length - 1; i >= 0; i -= 1) {
-    if (entries[i].role === role) return entries[i];
-  }
-  return null;
-}
-
 /**
- * The live view shows the exchange, not the log: the sentence being spoken (or
- * heard) at reading size and nothing else. The whole transcript is in Chats,
- * which is where you go when you want to read rather than glance.
+ * The conversation, as it happens.
+ *
+ * It used to draw one line — the most recent answer — at 25px in the middle of
+ * the screen. That meant a finished answer was overwritten the moment you
+ * started speaking, so nothing ever stayed long enough to read, and it grew
+ * downward through the dock because it was pinned by its top edge with nothing
+ * bounding it.
+ *
+ * So it draws the whole exchange into a box that scrolls. The turns are built
+ * wholesale rather than diffed — a session is a few dozen of them and they
+ * arrive already ordered — but only when the turns have actually changed, which
+ * `revision` is what says. A partial arrives several times a second, and a
+ * transcript that rebuilt itself for each one would drop your text selection
+ * every time you tried to copy a line out of it.
  */
 function paint() {
   const k = kind();
@@ -84,37 +89,129 @@ function paint() {
   else if (k === 'listening') label = 'listening';
   stateLabel.textContent = label;
 
-  const answer = lastOf('falcon');
-  sayEl.classList.toggle('partial', Boolean(partial));
-  sayEl.classList.toggle('cut', !partial && Boolean(answer?.interrupted));
-
-  if (partial) sayEl.textContent = partial;
-  else if (answer) sayEl.textContent = answer.text;
-  else sayEl.textContent = '';
-
-  hintEl.replaceChildren(...hintFor(k));
-  paintHalo(k);
+  paintChat();
+  // The field's colour *is* the mode. Animated, its own loop picks that up on
+  // the next frame; held still for someone who asked the system for less
+  // motion, this is the only thing that ever redraws it.
+  if (still) draw(performance.now());
 }
 
-/** Built as nodes rather than innerHTML: the wake phrase comes from config. */
-function hintFor(k) {
-  if (k === 'notes') {
-    const b = document.createElement('b');
-    b.textContent = `${phrase} stop`;
-    return [document.createTextNode('Say '), b, document.createTextNode(' to finish and write the notes.')];
+/** Roles that belong in the live conversation. */
+const RENDERED = new Set([
+  'you', 'falcon', 'heard', 'ignored', 'tool', 'system', 'warn', 'error',
+]);
+
+/* Matches the cap in src/bus.mjs, which trims from the front. The window is the
+   surface people scroll, so it should hold what the orchestrator holds — no
+   more, or a session left running for days rebuilds a list nobody can reach the
+   top of. */
+const MAX_ENTRIES = 400;
+
+/** Whether the reader is at the bottom, and so wants to stay there. */
+function atBottom() {
+  return chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 60;
+}
+
+/* The two nodes after the turns: what it is hearing, and whether it is working.
+   Held here so a paint can replace just these and leave the rows in place. */
+let tail = [];
+
+function paintChat() {
+  // Asked before the DOM changes, or the answer is always "no".
+  const follow = atBottom();
+  const shown = entries.filter((e) => RENDERED.has(e.role));
+
+  if (revision !== painted) {
+    painted = revision;
+    const lastAnswer = shown.filter((e) => e.role === 'falcon').pop();
+    // This takes the tail with it, which is fine: it is rebuilt just below.
+    chatEl.replaceChildren(...shown.map((e) => row(e, e === lastAnswer)));
+  } else {
+    for (const node of tail) node.remove();
   }
-  if (k === 'speaking') return [document.createTextNode('Just start talking to cut it off.')];
-  if (k === 'thinking') return [];
-  if (k === 'listening') return [document.createTextNode('Listening — just talk.')];
+  tail = [];
+
+  // What it is hearing right now, where the turn itself will appear.
+  if (partial) tail.push(ghost(partial));
+  // Working, under the last thing said rather than in place of it.
+  if (status && !speaking) tail.push(working(status));
+  // Nothing said and nothing happening: the wake phrase, and nothing else.
+  if (shown.length === 0 && tail.length === 0) tail.push(opening());
+
+  for (const node of tail) chatEl.appendChild(node);
+
+  if (follow) chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function row(entry, latest) {
+  const el = document.createElement('div');
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.textContent = entry.text;
+
+  if (entry.role === 'falcon') {
+    el.className = `row falcon${latest ? ' latest' : ''}${entry.interrupted ? ' cut' : ''}`;
+  } else if (entry.role === 'you') {
+    el.className = 'row you';
+  } else if (entry.role === 'heard') {
+    // Speech captured in note mode is something you said, and reads as one.
+    el.className = 'row you ghost';
+  } else if (entry.role === 'ignored') {
+    // Something you said while it was asleep. Shown, and marked: a session that
+    // heard you and did nothing is exactly what looks broken from the outside.
+    el.className = 'row you ghost slept';
+  } else if (entry.role === 'tool') {
+    // A tool call, so a long pause has the reason for it in the pause.
+    el.className = 'row note tool';
+  } else {
+    el.className = `row note${entry.role === 'error' || entry.role === 'warn' ? ' bad' : ''}`;
+  }
+
+  el.appendChild(body);
+  return el;
+}
+
+/** What it is hearing right now, in the place the finished turn will take. */
+function ghost(text) {
+  const el = document.createElement('div');
+  el.className = 'row you ghost';
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.textContent = text;
+  el.appendChild(body);
+  return el;
+}
+
+function working(label) {
+  const el = document.createElement('div');
+  el.className = 'working';
+  const name = document.createElement('span');
+  name.className = 'label';
+  name.textContent = label;
+  el.appendChild(name);
+  for (let i = 0; i < 3; i += 1) el.appendChild(document.createElement('i'));
+  return el;
+}
+
+/** Nothing said yet. Built as nodes because the wake phrase comes from config. */
+function opening() {
+  const el = document.createElement('div');
+  el.className = 'opening';
   const b = document.createElement('b');
   b.textContent = hint.replace(/"/g, '');
-  return [document.createTextNode('Say '), b, document.createTextNode(' to wake it.')];
+  el.append(document.createTextNode('Say '), b, document.createTextNode(' to wake it.'));
+  return el;
 }
 
+/**
+ * One patch from the orchestrator. A snapshot carries the whole state for a
+ * client that connected late; everything after it is a small change.
+ */
 function apply(patch) {
   switch (patch.type) {
     case 'snapshot':
       entries = patch.entries ?? [];
+      revision += 1;
       mode = patch.mode;
       status = patch.status;
       speaking = patch.speaking;
@@ -125,16 +222,23 @@ function apply(patch) {
       paintTodos();
       paint();
       break;
-    case 'entry': entries.push(patch.entry); paint(); break;
+    case 'entry':
+      entries.push(patch.entry);
+      if (entries.length > MAX_ENTRIES) entries.splice(0, entries.length - MAX_ENTRIES);
+      revision += 1;
+      paint();
+      break;
     case 'append': {
       const entry = entries.find((e) => e.id === patch.id);
       if (entry) entry.text = `${entry.text} ${patch.text}`.trim();
+      revision += 1;
       paint();
       break;
     }
     case 'interrupted': {
       const entry = entries.find((e) => e.id === patch.id);
       if (entry) entry.interrupted = true;
+      revision += 1;
       paint();
       break;
     }
@@ -158,10 +262,10 @@ function apply(patch) {
   }
 }
 
-function info({ wakePhrase, wakeHint }) {
-  if (wakePhrase) phrase = wakePhrase;
-  if (wakeHint) hint = wakeHint;
-  if (wakePhrase || wakeHint) paint();
+function info({ wakeHint }) {
+  if (!wakeHint || wakeHint === hint) return;
+  hint = wakeHint;
+  paint();
 }
 
 // -------------------------------------------------------------------- views
@@ -180,9 +284,14 @@ function setView(next) {
 
   const live = next === 'library';
   meetingsEl.hidden = !live;
-  stage.hidden = !live;
+  chatEl.hidden = !live;
   browseEl.hidden = live;
   paintTodos();
+
+  // The box keeps the scroll offset it had while it was hidden, and answers
+  // kept arriving while you were reading last week — so that offset is no
+  // longer the bottom. Coming back here is a request to see the newest turn.
+  if (live) chatEl.scrollTop = chatEl.scrollHeight;
 
   if (!live) {
     selected = null;
@@ -442,6 +551,8 @@ function paintTodos() {
   // An empty list with nothing ever added is clutter; once it has been used the
   // rail stays, so a list you just emptied does not vanish out from under you.
   todosEl.hidden = view !== 'library' || todos.length === 0;
+  // The conversation widens into the space when there is no rail beside it.
+  document.body.dataset.todos = todosEl.hidden ? 'none' : 'some';
   todoCount.textContent = open.length ? `${open.length} open` : 'all done';
   todoToggle.textContent = showDone ? 'hide done' : 'show done';
   todoToggle.hidden = todos.length === open.length;
@@ -530,21 +641,47 @@ const MOTION = {
   notes: { spin: 0.012, flick: 0.9, spread: 0.14 },
 };
 
-const dots = (() => {
+/**
+ * The field, at whatever size it is being drawn.
+ *
+ * 130 dots of radius 0.6 in a 260-unit space is a cloud at 340px and grey mush
+ * at 26px — sub-pixel, every one of them. So the small size is a different
+ * drawing rather than a reduction: a dozen fat dots on an even ring, which
+ * still turns, still pulses with the voice, and still reads as a ring. The app
+ * icon needed exactly this and for exactly the same reason.
+ */
+function makeDots(small) {
   let s = 20260830;
   const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const count = small ? 12 : COUNT;
   const out = [];
-  for (let i = 0; i < COUNT; i += 1) {
-    out.push({
-      angle: i * 2.39996,
-      band: 48 + rnd() * 40,
-      r: 0.6 + rnd() * 1.7,
-      alpha: 0.14 + rnd() * 0.52,
-      phase: rnd() * Math.PI * 2,
-    });
+  for (let i = 0; i < count; i += 1) {
+    out.push(small
+      ? {
+        angle: (i / count) * Math.PI * 2,
+        // 68 rather than 74: listening throws the band out by 62% at full
+        // volume, and 74 x 1.62 plus a 15-unit dot lands outside the 130-unit
+        // half-width — the ring flattened against the edge at exactly the
+        // moment it was being looked at hardest.
+        band: 68,
+        r: 15,
+        alpha: 0.55 + rnd() * 0.45,
+        phase: rnd() * Math.PI * 2,
+      }
+      : {
+        angle: i * 2.39996,
+        band: 48 + rnd() * 40,
+        r: 0.6 + rnd() * 1.7,
+        alpha: 0.14 + rnd() * 0.52,
+        phase: rnd() * Math.PI * 2,
+      });
   }
   return out;
-})();
+}
+
+/** Which of the two drawings is on screen; the field is sized before it draws. */
+let small = false;
+let dots = makeDots(small);
 
 const ctx = canvas.getContext('2d');
 let rot = 0;
@@ -556,17 +693,19 @@ let peak = 0.02;
 
 function sizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
-  const css = canvas.clientWidth || 340;
+  const css = canvas.clientWidth || 26;
+  // The two sizes are different drawings, not one scaled, so this rebuilds only
+  // when the canvas has crossed between them — not on every resize event, which
+  // handed back an identical twelve dots for a canvas that is always 26px.
+  const wantSmall = css <= 60;
+  if (wantSmall !== small) {
+    small = wantSmall;
+    dots = makeDots(small);
+  }
   canvas.width = Math.round(css * dpr);
   canvas.height = Math.round(css * dpr);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale((css * dpr) / VIEW, (css * dpr) / VIEW);
-}
-
-function paintHalo(k) {
-  const [r, g, b] = COLOURS[k];
-  halo.style.background =
-    `radial-gradient(closest-side, rgba(${r},${g},${b},0.17), rgba(${r},${g},${b},0.05) 62%, transparent 76%)`;
 }
 
 function draw(now) {
@@ -600,20 +739,28 @@ function draw(now) {
   }
 
   // A soft centre, not a disc. A flat circle at even alpha reads as a solid
-  // object sitting in front of the field rather than as the middle of it.
-  const glow = ctx.createRadialGradient(CENTRE, CENTRE, 0, CENTRE, CENTRE, 40);
-  glow.addColorStop(0, `rgba(${r},${g},${b},${(0.055 + energy * 0.07).toFixed(3)})`);
-  glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(CENTRE, CENTRE, 40, 0, Math.PI * 2);
-  ctx.fill();
-
-  halo.style.opacity = (0.7 + energy * 0.3).toFixed(2);
+  // object sitting in front of the field rather than as the middle of it. Only
+  // at the large size: at 26px it is a smudge inside a ring.
+  //
+  // The halo used to be a blurred gradient element behind a 340px form. At the
+  // size of a status dot there is nothing to blur, so the colour lives here.
+  if (!small) {
+    const glow = ctx.createRadialGradient(CENTRE, CENTRE, 0, CENTRE, CENTRE, 40);
+    glow.addColorStop(0, `rgba(${r},${g},${b},${(0.055 + energy * 0.07).toFixed(3)})`);
+    glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(CENTRE, CENTRE, 40, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 let frame = null;
+// Asked once. A field that moves all day is the wrong thing to force on someone
+// who has asked the system for less motion; it still shows state, it just holds
+// still, and `paint` is what redraws it when the state changes.
+const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function loop(now) {
   draw(now);
@@ -622,11 +769,8 @@ function loop(now) {
 
 function startField() {
   sizeCanvas();
-  paintHalo(kind());
-  // A field that moves all day is the wrong thing to force on someone who has
-  // asked the system for less motion; it still shows state, it just holds still.
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    draw(0);
+  if (still) {
+    draw(performance.now());
     return;
   }
   if (frame === null) frame = requestAnimationFrame(loop);
@@ -721,8 +865,10 @@ document.addEventListener('keydown', (event) => {
   else send({ cmd: 'interrupt' });
 });
 
+// The field first: `paint` redraws it when motion is off, and it cannot do that
+// against a canvas that has not been measured yet.
+startField();
 paint();
 setView(location.hash.slice(1) || 'library');
-startField();
 connect();
 if (view === 'library') input.focus();

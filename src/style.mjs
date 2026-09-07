@@ -66,7 +66,7 @@ more things you could do.`;
 //
 // Split by what was asked, because "let me think about that" in reply to "open
 // the config file" sounds like it did not understand the request.
-const FILLERS = {
+export const FILLERS = {
   // "open the file", "run the tests" — acknowledge, don't ponder.
   command: ['sure', 'on it', 'yep, one sec', 'okay', 'doing that now', 'right'],
   // An actual question deserves a beat of thought.

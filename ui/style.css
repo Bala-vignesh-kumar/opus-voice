@@ -11,8 +11,10 @@
   --amber: #e0b473;
   --red: #f08c86;
   --rail: 300px;
+  --strip: 58px;
   --top: 106px;
   --bottom: 104px;
+  --gutter: 34px;
 }
 
 * { box-sizing: border-box; }
@@ -67,7 +69,7 @@ body {
 .mark {
   position: fixed;
   top: 34px;
-  left: 34px;
+  left: var(--gutter);
   z-index: 3;
   display: flex;
   align-items: center;
@@ -79,8 +81,7 @@ body {
   user-select: none;
 }
 
-.mark .d,
-.state .d {
+.mark .d {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -122,7 +123,7 @@ body {
 .topright {
   position: fixed;
   top: 30px;
-  right: 34px;
+  right: var(--gutter);
   z-index: 3;
   display: flex;
   align-items: center;
@@ -148,15 +149,9 @@ body {
 /* The state colours are the app's vocabulary and predate this design: green is
    listening, amber is note mode, blue is its own voice. */
 .state[data-kind="listening"] { color: var(--falcon); }
-.state[data-kind="listening"] .d { background: var(--falcon); box-shadow: 0 0 10px rgba(143, 217, 168, 0.9); }
 .state[data-kind="thinking"] { color: var(--amber); }
-.state[data-kind="thinking"] .d { background: var(--amber); box-shadow: 0 0 10px rgba(224, 180, 115, 0.9); }
 .state[data-kind="speaking"] { color: var(--you); }
-.state[data-kind="speaking"] .d { background: var(--you); box-shadow: 0 0 10px rgba(127, 179, 255, 0.9); }
 .state[data-kind="notes"] { color: var(--amber); }
-.state[data-kind="notes"] .d { background: var(--amber); box-shadow: 0 0 10px rgba(224, 180, 115, 0.9); }
-.state[data-kind] .d { animation: blip 1.8s ease-in-out infinite; }
-@keyframes blip { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
 .pill {
   padding: 8px 18px;
@@ -178,31 +173,17 @@ body {
 
 /* ------------------------------------------------------------------ form */
 
-.orb {
-  position: fixed;
-  left: 50%;
-  top: calc(var(--top) + (100% - var(--top) - var(--bottom)) / 2);
-  transform: translate(-50%, -50%);
-  width: 340px;
-  height: 340px;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
+/* The field, at the size of a status dot.
+   It used to be 340px in the dead centre, which is where the conversation
+   needed to be. It is not decoration though — its colour is the mode, its
+   motion is the voice level — so it moves into the status pill and keeps every
+   one of those jobs at a sixteenth of the size. */
+#field {
+  width: 26px;
+  height: 26px;
+  display: block;
+  flex: none;
 }
-
-/* The halo is a plain element rather than part of the canvas: a blurred
-   gradient the compositor owns costs nothing per frame, and the canvas is
-   already redrawing 130 points at 60fps. */
-.halo {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  filter: blur(6px);
-  transition: background 0.6s;
-}
-
-#field { width: 340px; height: 340px; display: block; }
 
 /* ---------------------------------------------------------- library view */
 
@@ -218,48 +199,192 @@ body {
   gap: 14px;
   min-height: 0;
 }
-.rail.left { left: 34px; }
-.rail.right { right: 34px; }
-/* `display: flex` beats the hidden attribute, so an empty to-do rail stayed on
-   screen as an empty box until this said otherwise. */
-.rail[hidden], .browse[hidden], .stage[hidden] { display: none; }
+.rail.right { right: var(--gutter); }
 
-.stage {
+/* Upcoming, with no calendar behind it yet.
+   A strip rather than a card: it holds the place so the layout will not jump
+   when there is something to put in it, and stops spending a third of the
+   window saying that there is nothing. */
+.strip {
   position: fixed;
-  left: calc(34px + var(--rail) + 26px);
-  right: calc(34px + var(--rail) + 26px);
-  top: calc(var(--top) + (100% - var(--top) - var(--bottom)) / 2 + 190px);
+  top: var(--top);
+  bottom: var(--bottom);
+  left: var(--gutter);
   z-index: 2;
+  width: var(--strip);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+}
+.strip .label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  user-select: none;
+  white-space: nowrap;
+}
+/* `display: flex` beats the hidden attribute, so an empty to-do rail stayed on
+   screen as an empty box until this said otherwise. Everything here is a flex
+   box, so everything here needs the line. */
+.rail[hidden], .strip[hidden], .chat[hidden], .browse[hidden] { display: none; }
+
+/* The conversation.
+   Both `top` and `bottom` are set, so it is a box with a known height and it
+   scrolls its own overflow. That is the whole fix for the answer running down
+   through the dock: nothing here can grow into anything else, whatever gets
+   said. The old stage was pinned by its top edge alone and grew without limit. */
+.chat {
+  position: fixed;
+  top: var(--top);
+  bottom: var(--bottom);
+  left: calc(var(--gutter) + var(--strip) + 22px);
+  right: calc(var(--gutter) + var(--rail) + 26px);
+  z-index: 2;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: 18px;
+  padding: 8px 4px 4px;
   min-width: 0;
-  pointer-events: none;
+}
+.chat::-webkit-scrollbar { width: 0; }
+/* Holds the turns against the bottom edge while there are few of them, without
+   `justify-content: flex-end` — which does the same thing visually and then
+   puts the overflow somewhere the box cannot scroll to. Measured in this
+   WebKit: 4074px of conversation in a 590px box, and `scrollTop` stuck at 0.
+   An auto margin absorbs the same free space and leaves the overflow reachable. */
+.chat > :first-child { margin-top: auto; }
+/* No to-dos yet: the rail is not on screen, so the conversation takes the room. */
+body[data-todos="none"] .chat { right: var(--gutter); }
+
+/* One exchange. `you` is a short thing you said and carries a surface so the
+   turn-taking is legible at a glance; `falcon` is the answer and sits on open
+   ground at reading size, because a surface behind every paragraph is what
+   makes an ambient screen heavy. */
+.row { display: flex; max-width: 100%; }
+.row.you { justify-content: flex-end; }
+.row.falcon { justify-content: flex-start; }
+
+.row .body {
+  max-width: 78%;
+  min-width: 0;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
-/* What it is saying, or what it is hearing. Sits on the open ground: putting a
-   surface behind every piece of content is what makes an ambient screen heavy. */
-.say {
-  max-width: 100%;
-  text-align: center;
-  font-size: 25px;
-  line-height: 1.45;
-  font-weight: 300;
-  letter-spacing: -0.017em;
+.row.you .body {
+  padding: 10px 17px;
+  border-radius: 20px 20px 6px 20px;
+  background: linear-gradient(180deg, rgba(127, 179, 255, 0.16), rgba(127, 179, 255, 0.08));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(127, 179, 255, 0.14);
   color: var(--text);
-  text-wrap: pretty;
+  font-size: 15.5px;
+  line-height: 1.55;
 }
-/* Provisional text never looks as settled as a finished turn. */
-.say.partial { font-style: italic; color: var(--soft); }
-.say.cut::after {
+
+.row.falcon .body {
+  font-size: 19px;
+  line-height: 1.5;
+  font-weight: 300;
+  letter-spacing: -0.012em;
+  color: var(--text);
+  padding-left: 2px;
+}
+
+/* Newest answer at full strength; everything above it has had its turn. */
+.row.falcon:not(.latest) .body { color: var(--soft); font-size: 17px; }
+
+/* Still being heard: provisional, and never mistaken for something you said. */
+.row.ghost .body {
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: var(--soft);
+  font-style: italic;
+}
+
+.row.cut .body::after {
   content: " — interrupted";
   color: var(--faint);
-  font-size: 15px;
+  font-size: 14px;
   font-style: normal;
+  font-weight: 400;
 }
 
-.hint { margin-top: 10px; font-size: 13px; color: var(--faint); text-align: center; }
-.hint b { color: var(--soft); font-weight: 600; }
+/* Said while it was asleep. Marked rather than dropped: the orchestrator
+   publishes these so a session that heard you and did nothing does not look
+   broken, and the marker is what says which of those two it was. */
+.row.slept .body::after {
+  content: " — asleep";
+  color: var(--faint);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+/* Things the app says about itself: a mic released, a warning. Small, dim, and
+   centred so they read as margin notes rather than as part of the exchange. */
+.row.note { justify-content: center; }
+.row.note .body {
+  font-size: 12.5px;
+  color: var(--faint);
+  text-align: center;
+  max-width: 90%;
+}
+.row.note.bad .body { color: var(--red); }
+
+/* A tool call, at the place the answer will take rather than out in the margin.
+   It is what is happening instead of the answer, and a pause with a name in it
+   reads as working rather than as stuck. */
+.row.note.tool { justify-content: flex-start; }
+.row.note.tool .body {
+  text-align: left;
+  padding-left: 2px;
+  letter-spacing: 0.05em;
+  max-width: 100%;
+}
+
+/* Working. Three dots under the last thing said, which is where a person looks
+   for it, rather than a word replacing the answer they were reading. */
+.working { display: flex; align-items: center; gap: 7px; padding-left: 2px; }
+.working .label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.working i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  animation: think 1.25s ease-in-out infinite;
+}
+.working i:nth-child(2) { animation-delay: 0.16s; }
+.working i:nth-child(3) { animation-delay: 0.32s; }
+@keyframes think {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-2px); }
+}
+
+/* Nothing said yet. The one place the wake phrase belongs, now that it is not
+   floating over the dock. */
+.opening {
+  margin: auto;
+  text-align: center;
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: 34ch;
+}
+.opening b { color: var(--soft); font-weight: 600; }
 
 /* ------------------------------------------------------------- rail parts */
 
@@ -291,15 +416,6 @@ body {
 .list::-webkit-scrollbar { display: none; }
 /* An empty list should not hold a rail's worth of nothing above its footnote. */
 .list:empty { flex: 0 0 auto; }
-
-.rail-note {
-  flex: none;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--faint);
-}
 
 /* ---------------------------------------------------------------- to-dos */
 
@@ -389,13 +505,12 @@ body {
 
 /* ----------------------------------------------------------- browse views */
 
-/* Three columns at the width this was designed for — list, the form's own
-   space, reader. Below that the form steps aside instead of holding a 340px
-   hole in the middle of something you are trying to read. */
+/* Three columns at the width this was designed for — list, a breathing space
+   down the middle, reader. */
 .browse {
   position: fixed;
-  left: 34px;
-  right: 34px;
+  left: var(--gutter);
+  right: var(--gutter);
   top: var(--top);
   bottom: var(--bottom);
   z-index: 2;
@@ -559,16 +674,11 @@ input[type="search"]::-webkit-search-cancel-button { display: none; }
    they go away rather than squeezing it. The conversation is the part that has
    to survive a small window. */
 @media (max-width: 1040px) {
-  body[data-view="library"] .rail { display: none; }
-  body[data-view="library"] .stage { left: 34px; right: 34px; }
-}
-
-/* The form is decoration in a reading view and content in the live one, so it
-   is the thing that gives way when a browse view runs out of room. */
-@media (max-width: 1359px) {
-  body:not([data-view="library"]) .orb { display: none; }
+  body[data-view="library"] .rail,
+  body[data-view="library"] .strip { display: none; }
+  body[data-view="library"] .chat { left: var(--gutter); right: var(--gutter); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .state[data-kind] .d { animation: none; }
+  .working i { animation: none; opacity: 0.7; }
 }

@@ -20,31 +20,16 @@
 
   <div class="topright">
     <div class="state" id="state">
-      <span class="d"></span>
+      <canvas id="field" aria-hidden="true"></canvas>
       <span id="state-label">asleep</span>
     </div>
     <button class="pill" data-cmd="stop">Sleep</button>
   </div>
 
-  <!-- The form. Fixed dead centre in every view; nothing else is allowed to
-       occupy the middle column. -->
-  <div class="orb" id="orb">
-    <div class="halo" id="halo"></div>
-    <canvas id="field" aria-hidden="true"></canvas>
-  </div>
-
   <!-- ------------------------------------------------------- library view -->
 
-  <aside class="glass rail left" id="meetings">
-    <div class="rh">
-      <span class="n">Upcoming</span>
-      <span class="c" id="meeting-count"></span>
-    </div>
-    <div class="list" id="meeting-list"></div>
-    <div class="rail-note">
-      No calendar connected. Once it is, the next meeting can go straight into
-      note mode instead of you starting it by voice.
-    </div>
+  <aside class="glass strip" id="meetings" title="No calendar connected yet">
+    <span class="label">Upcoming</span>
   </aside>
 
   <aside class="glass rail right" id="todos" hidden>
@@ -59,10 +44,7 @@
     </form>
   </aside>
 
-  <main class="stage" id="stage">
-    <div class="say" id="say"></div>
-    <div class="hint" id="hint"></div>
-  </main>
+  <main class="chat" id="chat"></main>
 
   <!-- -------------------------------------------------------- browse views -->
 

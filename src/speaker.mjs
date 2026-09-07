@@ -91,6 +91,11 @@ export class Speaker extends EventEmitter {
   say(text) {
     const clean = text?.trim();
     if (!clean) return;
+    // Every sentence the app says out loud passes through here, which is what
+    // makes this the one place worth announcing it from — there are seventeen
+    // callers and a list kept at each of them would be wrong within a week.
+    // src/echo-guard.mjs is what listens, and says why anything needs to know.
+    this.emit('said', clean);
     if (this.engine !== 'piper') {
       this.voice.speak(clean);
       return;

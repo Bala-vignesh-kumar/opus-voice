@@ -15,7 +15,7 @@ const BINARY = process.env.FALCON_IO_BIN || path.resolve(
 
 /**
  * Emits: 'ready', 'partial', 'final', 'bargein', 'speech-start', 'speech-end',
- * 'warn', 'error', 'exit'.
+ * 'note', 'warn', 'error', 'exit'.
  */
 export class VoiceIO extends EventEmitter {
   constructor({ locale = 'en-US', echoCancellation = false, micDevice = 'builtin' } = {}) {
@@ -116,6 +116,9 @@ export class VoiceIO extends EventEmitter {
       case 'recog-error':
       case 'recog_error': this.emit('recog-error', event); break;
       case 'standby': this.emit('standby', event.on); break;
+      // Something the audio side did that is worth saying but is not a fault.
+      // Kept off 'warn' so that channel stays worth reading.
+      case 'note': this.emit('note', event.message); break;
       case 'warn': this.emit('warn', event.message); break;
       case 'error':
         this.emit('error', Object.assign(new Error(event.message), { fatal: event.fatal }));
