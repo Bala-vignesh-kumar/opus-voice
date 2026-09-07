@@ -22,6 +22,8 @@ swiftc -O \
   swift/UtteranceBuffer.swift \
   swift/InputDevice.swift \
   swift/EchoPolicy.swift \
+  swift/Downsampler.swift \
+  swift/TranscriptDecision.swift \
   swift/Keepalive.swift \
   -framework AVFoundation \
   -framework Speech \

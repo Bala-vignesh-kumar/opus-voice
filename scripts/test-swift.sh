@@ -21,5 +21,7 @@ swiftc -o "$out" \
   swift/AppLaunch.swift swift/AppLaunchTests.swift \
   swift/RemoteCommands.swift swift/RemoteCommandsTests.swift \
   swift/EchoPolicy.swift swift/EchoPolicyTests.swift \
+  swift/Downsampler.swift swift/DownsamplerTests.swift \
+  swift/TranscriptDecision.swift swift/TranscriptDecisionTests.swift \
   swift/TestMain.swift
 "$out"

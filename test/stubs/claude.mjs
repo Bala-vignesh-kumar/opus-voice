@@ -45,9 +45,28 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     process.exit(1);
   }
 
+  // Out of budget rather than out of session: the turn is accepted, the limit
+  // goes to stderr, nothing is answered, and the process stays up to be asked
+  // again. This is what an account over its monthly spend limit actually does.
+  if (asked.includes('hit the limit')) {
+    process.stderr.write("You've hit your monthly spend limit · your session limit resets 3:10am\n");
+    // The turn still ends, or `busy` would never clear and the next question
+    // would queue behind it forever rather than failing the same way.
+    emit({ type: 'result', is_error: true, result: 'usage limit' });
+    return;
+  }
+
   const reply = asked.includes('Transcript:') ? SUMMARY : REPLY;
-  emit({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } } });
-  emit({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: reply } } });
-  emit({ type: 'stream_event', event: { type: 'content_block_stop', index: 0 } });
-  emit({ type: 'result', is_error: false, result: reply });
+  const answer = () => {
+    emit({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } } });
+    emit({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: reply } } });
+    emit({ type: 'stream_event', event: { type: 'content_block_stop', index: 0 } });
+    emit({ type: 'result', is_error: false, result: reply });
+  };
+
+  // Answers slowly, so a test can do something else while a turn is genuinely
+  // still in flight. Everything about queueing is invisible when every turn
+  // finishes before the next line of the test runs.
+  if (asked.includes('take your time')) setTimeout(answer, 1500);
+  else answer();
 });

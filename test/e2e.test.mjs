@@ -689,3 +689,120 @@ test('a claude session that dies over and over does end the app', async () => {
     assert.equal(code, 1);
   } finally { app.stop(); }
 });
+
+// Both of these are transcribed from a session on 4 Sep 2026 that spent its
+// whole life answering itself, with the account out of quota underneath.
+
+test('it does not take its own answer for the next question', async () => {
+  // Laptop speakers, built-in microphone, echo cancellation off — so everything
+  // it said arrived back down its own microphone a couple of seconds later.
+  const app = new App({ args: ['--echo-window-ms', '600000'] });
+  try {
+    await app.expect('Falcon');
+    app.speak("hey falcon let's discuss");
+    await app.waitForMode('chat');
+    app.speak('how is the build');
+    await app.asked_('how is the build');
+    await app.expect('This is the stub answer.');
+
+    // The microphone hears the answer coming out of the speakers.
+    app.speak('This is the stub answer.');
+    await app.expect('ignored its own voice');
+    await app.settle();
+
+    assert.deepEqual(
+      app.asked().filter((t) => t.includes('stub answer')), [],
+      'it asked itself its own answer back',
+    );
+  } finally { app.stop(); }
+});
+
+test('a usage limit is said out loud once, and the thinking beat stops', async () => {
+  const app = new App();
+  try {
+    await app.expect('Falcon');
+    app.type('hit the limit');
+    await app.expect('spend limit');
+
+    // Whoever asked is not looking at the screen, so a red line is not enough —
+    // and a spoken line never reaches the terminal, only the synthesizer.
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline && !app.spoken().some((l) => l.includes('usage limit'))) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    await app.settle();
+
+    assert.equal(
+      app.spoken().filter((line) => line.includes('usage limit')).length, 1,
+      `it should say it once, not once per failed turn: ${JSON.stringify(app.spoken())}`,
+    );
+
+    // A second failing turn says nothing more and makes no thinking noise —
+    // which through laptop speakers is what fed the loop in the first place.
+    const before = app.spoken().length;
+    app.type('hit the limit again');
+    await app.expectCount('spend limit', 2);
+    await app.settle();
+    assert.equal(app.spoken().length, before, 'it spoke while it knew it was blocked');
+  } finally { app.stop(); }
+});
+
+// Astra's review, P1 #3. Reachable by talking normally: ask something, start
+// taking notes while it is still answering, then stop. The summary was queued
+// behind the answer, and the flag that says "the next turn to end is the
+// summary" was already set — so the *answer* was written to disk as the note,
+// and the summary prompt, transcript and all, was read out loud.
+test('a summary asked for while an answer is in flight is still the summary', async () => {
+  const app = new App();
+  try {
+    await app.expect('Falcon');
+    app.type('hey falcon chat');
+    await app.waitForMode('chat');
+
+    app.type('take your time answering this one');
+    await app.asked_('take your time');
+
+    // The answer is still in flight from here to the end of the test.
+    app.type('hey falcon listen');
+    await app.expect('taking notes');
+    app.type('the catch block marks it processed even when it threw');
+    app.type('hey falcon stop');
+
+    await app.expect('notes saved to', 12000);
+
+    const notesFile = fs.readdirSync(path.join(app.dir, 'notes'))
+      .flatMap((d) => fs.readdirSync(path.join(app.dir, 'notes', d))
+        .map((f) => path.join(app.dir, 'notes', d, f)))[0];
+    const body = fs.readFileSync(notesFile, 'utf8');
+
+    assert.ok(!body.includes('This is the stub answer.'),
+      `the answer to an unrelated question was saved as the note:\n${body}`);
+    assert.match(body, /redis lock/i);
+
+    // The summary prompt is plumbing. Spoken aloud it reads the entire
+    // transcript back at the room it was just recorded from.
+    assert.ok(!app.spoken().some((line) => line.includes('Transcript:')),
+      `the summary prompt was spoken:\n${app.spoken().join('\n')}`);
+  } finally {
+    await app.stop();
+  }
+});
+
+// Astra's review, P2 #12. Quitting kills the children; their exit handlers did
+// not know a shutdown was under way, so teardown announced a lost connection
+// and spawned a replacement session on its way out the door.
+test('quitting does not spawn a replacement on the way out', async () => {
+  const app = new App();
+  try {
+    await app.expect('Falcon');
+    app.child.kill('SIGINT');
+    await app.exited();
+
+    assert.ok(!app.out.includes('starting a new session'),
+      `a new session was started during shutdown:\n${app.out}`);
+    assert.ok(!app.out.includes('I lost my connection'),
+      `it complained about losing Claude while being told to quit:\n${app.out}`);
+  } finally {
+    await app.stop();
+  }
+});

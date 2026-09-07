@@ -232,6 +232,10 @@ final class VoiceIO: NSObject {
 
     private var playFormat: AVAudioFormat!
     private var micFormat: AVAudioFormat!
+    /// Carries its position between buffers, so the audio handed to Whisper has
+    /// no seam at each 1024-frame boundary. Re-pointed at the real rate on the
+    /// first buffer through.
+    private var resampler = Downsampler(inputRate: Downsampler.target)
     private var pcmFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
 
@@ -315,6 +319,14 @@ final class VoiceIO: NSObject {
             // for it. Announcing before it resolves reports the wrong engine and
             // the wrong on-device state.
             // After the engine, so it builds against the device already chosen.
+            // Two channels on purpose: the failures are warnings, and the one
+            // that says it worked is not. It fires again on every route change.
+            self.keepalive.onProblem = { message in
+                emit(["type": "warn", "message": message])
+            }
+            self.keepalive.onNote = { message in
+                emit(["type": "note", "message": message])
+            }
             self.keepalive.start()
             self.watchRoute()
             self.setupRecognizer {
@@ -509,21 +521,18 @@ final class VoiceIO: NSObject {
         return out
     }
 
-    /// Whisper wants 16kHz mono float32. The microphone is usually 48kHz, so
-    /// this decimates rather than dragging in a converter for a 3x integer
-    /// ratio — the recognizer is not sensitive to the difference and an audio
-    /// thread should not be allocating an AVAudioConverter per buffer.
+    /// Whisper wants 16kHz mono float32, and is told it is getting exactly that.
+    ///
+    /// The rate and the phase both live in `Downsampler`, which is where the
+    /// reasoning is written down: a per-buffer stride was only correct at 48kHz
+    /// and restarted its phase every 1024 frames.
     private func samples16k(from buffer: AVAudioPCMBuffer) -> [Float] {
         guard let channel = buffer.floatChannelData?[0] else { return [] }
-        let stride = max(1, Int((buffer.format.sampleRate / 16000).rounded()))
-        var out: [Float] = []
-        out.reserveCapacity(Int(buffer.frameLength) / stride + 1)
-        var i = 0
-        while i < Int(buffer.frameLength) {
-            out.append(channel[i])
-            i += stride
-        }
-        return out
+        let rate = buffer.format.sampleRate
+        // A device change arrives as a different rate on the same tap.
+        if resampler.inputRate != rate { resampler.reset(inputRate: rate) }
+        let frames = Int(buffer.frameLength)
+        return resampler.resample(Array(UnsafeBufferPointer(start: channel, count: frames)))
     }
 
     /// Reports mic loudness a few times a second so a dead input is visible
@@ -738,25 +747,33 @@ final class VoiceIO: NSObject {
         // and answered "Still here."
         guard isSpeech(trimmed) else { return }
 
-        var shouldBargeIn = false
-        var startingTurn = false
-        state.sync {
-            guard trimmed != partial else { return }
-            // First words of a turn. Everything buffered before now is whatever
-            // the room was doing while nobody was talking to it, and handing
-            // that to the second recognizer means it transcribes the room.
-            startingTurn = partial.isEmpty
-            // Second line of defence behind echo cancellation: if everything we
-            // "heard" is already inside what we are currently saying, it's our
-            // own voice leaking back in.
-            if speaking, isSelfEcho(trimmed) { return }
-            partial = trimmed
-            lastChange = Date()
-            if speaking, trimmed.split(separator: " ").count >= bargeInWords {
-                shouldBargeIn = true
+        // The decision comes back as a value rather than being taken by a
+        // `return` inside the closure: those returned from the closure only,
+        // and execution carried on to emit a partial the closure had just
+        // rejected as this app's own voice. See TranscriptDecision.swift.
+        let decision: TranscriptDecision = state.sync {
+            let verdict = transcriptDecision(
+                trimmed: trimmed,
+                partial: partial,
+                speaking: speaking,
+                isSelfEcho: isSelfEcho(trimmed),
+                bargeInWords: bargeInWords
+            )
+            if verdict != .ignore {
+                partial = trimmed
+                lastChange = Date()
             }
+            return verdict
         }
-        guard !partial.isEmpty else { return }
+
+        let startingTurn: Bool
+        switch decision {
+        case .ignore:
+            return
+        case .accept(let starting), .interrupt(let starting):
+            startingTurn = starting
+        }
+        let shouldBargeIn = decision == .interrupt(startingTurn: startingTurn)
         // A little is kept, not none: speech begins before the recognizer
         // notices it, and cutting at exactly this instant loses the first word.
         // Generous, because the recognizer reports its first words well after
@@ -1006,9 +1023,14 @@ final class VoiceIO: NSObject {
         else { return }
 
         buffer.frameLength = frames
+        // Only the whole samples, never `data.count`. The buffer holds
+        // `frames * 2` bytes, and an odd-length chunk — which a pipe is free to
+        // deliver, since it splits wherever it likes — copied one byte past the
+        // end of it.
+        let bytes = Int(frames) * 2
         data.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
-            memcpy(channel[0], base, data.count)
+            memcpy(channel[0], base, bytes)
         }
 
         guard let converted = convert(buffer) else { return }

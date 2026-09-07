@@ -9,9 +9,10 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 import { ClaudeSession } from './claude.mjs';
+import { GatewaySession } from './gateway.mjs';
 import { VoiceIO } from './voice.mjs';
 import { SpeechChunker } from './chunk.mjs';
-import { nextFiller, narrate } from './style.mjs';
+import { nextFiller, narrate, SYSTEM_PROMPT } from './style.mjs';
 import { Speaker } from './speaker.mjs';
 import { Ui } from './ui.mjs';
 import { Conversation } from './bus.mjs';
@@ -26,6 +27,7 @@ import { parseTodo } from './todo-commands.mjs';
 import { createIssue } from './github.mjs';
 import { Whisper, available as whisperAvailable } from './whisper.mjs';
 import { acceptable } from './transcript-guard.mjs';
+import { EchoGuard } from './echo-guard.mjs';
 import { Trigger, FILE as WAKE_FILE, HOOK } from './trigger.mjs';
 import { checkShortcut } from './siri.mjs';
 import { migrate } from './migrate.mjs';
@@ -69,13 +71,30 @@ const voice = new VoiceIO({
   echoCancellation: config.echoCancellation,
   micDevice: config.micDevice,
 });
-const claude = new ClaudeSession({
-  model: config.model,
-  effort: config.effort,
-  cwd: workdir,
-  permissionMode: config.permissionMode,
-  bin: config.claudeBin || process.env.FALCON_CLAUDE_BIN,
-});
+// Named `claude` throughout because everything downstream only knows the
+// interface: same events, same four methods, whichever one answers.
+const usingGateway = config.backend === 'gateway';
+if (usingGateway && !process.env.EXPLABS_API_KEY) {
+  view.error('--backend gateway needs EXPLABS_API_KEY in the environment');
+  process.exit(1);
+}
+const claude = usingGateway
+  ? new GatewaySession({
+    url: config.gatewayUrl,
+    model: config.gatewayModel,
+    apiKey: process.env.EXPLABS_API_KEY,
+    systemPrompt: SYSTEM_PROMPT,
+  })
+  : new ClaudeSession({
+    model: config.model,
+    effort: config.effort,
+    cwd: workdir,
+    permissionMode: config.permissionMode,
+    bin: config.claudeBin || process.env.FALCON_CLAUDE_BIN,
+  });
+// Said out loud once at startup rather than buried in a log: this is the one
+// mode where what you say leaves the machine, and it should never be a surprise.
+if (usingGateway) view.warn(`answering with ${config.gatewayModel} over the network — it cannot read your code, and your words leave this machine`);
 const speaker = new Speaker(voice, {
   engine: config.tts,
   piperVoice: config.piperVoice,
@@ -83,6 +102,11 @@ const speaker = new Speaker(voice, {
   // reported from inside the constructor, so a later listener misses it.
   onWarn: (message) => view.warn(message),
 });
+
+// What it has said out loud lately, so it can refuse to hear it back. Fed from
+// the speaker itself rather than from the seventeen places that call it.
+const echo = new EchoGuard({ window: config.echoWindowMs });
+speaker.on('said', (text) => echo.said(text));
 // Local Whisper supplies the text that reaches Claude; Apple's recognizer keeps
 // driving partials, barge-in and endpointing, which is what it is good at. Not
 // installed means we use Apple's text everywhere, exactly as before this existed.
@@ -116,7 +140,6 @@ const MODE = { ASLEEP: 'asleep', AWAKE: 'awake', CHAT: 'chat', NOTE: 'note' };
 // With the wake word off it behaves as it did before: always listening.
 let mode = config.wakeWord ? MODE.ASLEEP : MODE.CHAT;
 let sleepTimer = null;
-let pendingSummary = false;
 
 let started = false;            // voiceio has finished audio setup
 const typedBacklog = [];
@@ -125,7 +148,12 @@ const turn = {
   spoke: false,       // has any real answer been sent to the synthesizer yet
   aborted: false,     // user interrupted, discard the rest of this generation
   fillerTimer: null,
-  queued: null,       // utterance that arrived while Opus was still answering
+  queued: null,       // request that arrived while Opus was still answering
+  // Whether the turn now running is the note summary. On the turn rather than
+  // in a module-level flag: set globally, it was already true while an earlier
+  // answer was still in flight, and that answer's turn-end claimed it and was
+  // written to disk as the note.
+  summary: false,
   line: '',           // accumulated text for the transcript display
   labelled: false,    // has the transcript printed the "falcon" prefix this turn
   tools: 0,           // tool calls so far this turn
@@ -135,18 +163,34 @@ const turn = {
   raw: '',            // unmodified model output, for writing to disk
 };
 
+// Whether the CLI has told us it is out of quota.
+//
+// Not a transient error: it will answer nothing at all until the limit resets,
+// and every failed turn still spoke a thinking beat on its way to failing —
+// which through laptop speakers is what fed the echo loop. So it is said once,
+// out loud, and the beat stops. Cleared by the first real sentence of an answer,
+// which is the only proof that the limit has lifted.
+let quotaBlocked = false;
+
+/** The shapes the CLI reports a limit in. */
+const QUOTA = /\b(?:spend|usage|rate) limit\b|\blimit reached\b|\bquota\b/i;
+
 // FALCON_TIMING=1 reports how long until the first real word is spoken,
 // which is the number that actually decides whether this feels live.
 const TIMING = Boolean(process.env.FALCON_TIMING);
 
 // MARK: turn lifecycle
 
-function ask(text, { silent = false } = {}) {
+function ask(text, { silent = false, summary = false } = {}) {
   if (claude.busy) {
-    turn.queued = text;
+    // The whole request, not just its words. Queueing the text alone dropped
+    // `silent`, so a summary that had to wait was read out loud — prompt,
+    // transcript and all — to the room it had just been recorded from.
+    turn.queued = { text, silent, summary };
     return;
   }
   turn.silent = silent;
+  turn.summary = summary;
   turn.raw = '';
   if (!silent) view.you(text);
   chunker.reset();
@@ -166,7 +210,7 @@ function ask(text, { silent = false } = {}) {
     // Matched to what was asked: "sure" for an instruction, a thinking beat for
     // a question. "Let me think about that" in reply to "open the file" sounds
     // like it misheard.
-    if (!turn.spoke && !turn.aborted) speaker.say(nextFiller(text));
+    if (!turn.spoke && !turn.aborted && !quotaBlocked) speaker.say(nextFiller(text));
   }, config.fillerDelayMs);
 }
 
@@ -175,6 +219,8 @@ function say(sentence) {
   if (turn.silent) return;
   // `spoke` gates the thinking filler and narration also sets it; the transcript
   // label is tracked separately so the first real sentence still gets labelled.
+  // It answered, so whatever was stopping it has lifted.
+  quotaBlocked = false;
   const first = !turn.labelled;
   if (first && TIMING) view.note(`(first word in ${Date.now() - turn.asked}ms)`);
   turn.labelled = true;
@@ -198,6 +244,9 @@ function setMode(next, spoken) {
   // Called on every question to refresh the idle timer, so only announce a
   // genuine transition.
   if (changed) view.mode(next);
+  // The conversation is over; nothing it said is still in the air. Before the
+  // line below, so that one is remembered.
+  if (changed && next === MODE.ASLEEP) echo.clear();
   armSleep();
   if (spoken) speaker.say(spoken);
 }
@@ -240,8 +289,7 @@ function finishNotes() {
   // because the spoken summary a moment later is the acknowledgement.
   setMode(MODE.ASLEEP, null);
   view.note(`summarizing ${notes.count} utterances…`);
-  pendingSummary = true;
-  ask(SUMMARY_PROMPT + transcript, { silent: true });
+  ask(SUMMARY_PROMPT + transcript, { silent: true, summary: true });
 }
 
 /** Publishes the list after anything changes it. */
@@ -469,7 +517,12 @@ voice.on('ready', (event) => {
   for (const line of backlog) handleUtterance(line, { typed: true });
 });
 
+// The last thing it heard but has not finished hearing, kept so barge-in can be
+// asked whether the voice interrupting is its own.
+let lastPartial = '';
+
 voice.on('partial', (text) => {
+  lastPartial = text;
   // Asleep it shows nothing at all. A live transcript of the room scrolling past
   // is exactly the "it is still listening" feeling that sleeping exists to
   // remove, and there is nothing to report until the phrase arrives.
@@ -517,6 +570,7 @@ function dumpUtterance(event) {
 
 voice.on('final', async (text) => {
   view.clearLive();
+  lastPartial = '';
   const audio = lastUtterance;
   lastUtterance = null;
 
@@ -528,11 +582,25 @@ voice.on('final', async (text) => {
     // than a turn transcribed less well.
     if (acceptable(better, audio.peak)) heard = better;
   }
+
+  // Its own voice, back down its own microphone. Said in the transcript rather
+  // than dropped quietly: a microphone that swallows turns without saying so is
+  // the one failure this app has no way to explain afterwards. It also keeps
+  // the app from taking its own "going to sleep." for an instruction.
+  if (echo.isEcho(heard)) {
+    view.note(`ignored its own voice: "${heard}"`);
+    return;
+  }
+
   handleUtterance(heard);
 });
 
 voice.on('bargein', () => {
   if (!claude.busy && !turn.spoke) return;
+  // Two words are enough to count as an interruption, and "hang on" is two
+  // words. Without this it hears its own thinking beat and cuts itself off to
+  // listen to itself.
+  if (echo.isEcho(lastPartial)) return;
   turn.aborted = true;
   clearTimeout(turn.fillerTimer);
   speaker.stop();
@@ -550,6 +618,7 @@ voice.on('speech-end', () => {
 voice.on('level', ({ source, rms }) => view.level(source, rms));
 
 voice.on('standby', (on) => view.note(on ? 'microphone released' : 'microphone open'));
+voice.on('note', (message) => view.note(message));
 voice.on('warn', (message) => view.warn(message));
 
 // Recognition failing looks identical to nobody talking, so say it out loud
@@ -577,6 +646,10 @@ voice.on('error', (err) => {
 // still stops, because respawning into a broken device forever is worse.
 let voiceRestarts = [];
 voice.on('exit', () => {
+  // Same reason as the Claude session below: a daemon we killed ourselves is
+  // not a daemon that died, and restarting it here reopens the microphone
+  // during the teardown whose job is to hand it back.
+  if (closing) return;
   const now = Date.now();
   voiceRestarts = voiceRestarts.filter((at) => now - at < 60_000);
   voiceRestarts.push(now);
@@ -629,8 +702,8 @@ claude.on('turn-end', () => {
   // a long answer must not put it to sleep while it is still talking.
   armSleep();
 
-  if (pendingSummary) {
-    pendingSummary = false;
+  if (turn.summary) {
+    turn.summary = false;
     turn.silent = false;
     // Interrupted mid-summary, or the model produced nothing. The discussion is
     // still held — writing an empty file over it, and then clearing it, would
@@ -665,7 +738,7 @@ claude.on('turn-end', () => {
   if (turn.queued) {
     const next = turn.queued;
     turn.queued = null;
-    ask(next);
+    ask(next.text, { silent: next.silent, summary: next.summary });
   }
 });
 
@@ -674,7 +747,16 @@ claude.on('error', (err) => view.error(err.message));
 // The reason it died, which used to be dropped on the floor: the CLI reports
 // rate limits and expired auth here and then exits, and without this the app
 // went down with nothing on screen but an exit code.
-claude.on('stderr', (text) => view.warn(text.split('\n')[0].slice(0, 200)));
+claude.on('stderr', (text) => {
+  const line = text.split('\n')[0].slice(0, 200);
+  view.warn(line);
+  // Whoever asked is not looking at the screen — a red line they cannot see is
+  // the same as silence, and silence from this reads as the app being broken.
+  if (!QUOTA.test(line) || quotaBlocked) return;
+  quotaBlocked = true;
+  clearTimeout(turn.fillerTimer);
+  speaker.say("I've hit the Claude usage limit, so I can't answer until it resets.");
+});
 
 // A session that exits used to take the whole app with it. That was survivable
 // when this was a terminal program you had just typed into; it is not, now that
@@ -686,6 +768,9 @@ claude.on('stderr', (text) => view.warn(text.split('\n')[0].slice(0, 200)));
 // respawning forever.
 let claudeRestarts = [];
 claude.on('exit', (code, reason) => {
+  // Shutting down kills this on purpose. Without the guard, quitting announced
+  // a lost connection and spawned a replacement session on its way out.
+  if (closing) return;
   const now = Date.now();
   claudeRestarts = claudeRestarts.filter((at) => now - at < 60_000);
   claudeRestarts.push(now);
@@ -834,6 +919,7 @@ function shutdown(code = 0) {
   if (closing) return;
   closing = true;
   clearTimeout(turn.fillerTimer);
+  clearTimeout(sleepTimer);
   // Closes the conversation that was still open, so a session ended with ctrl-c
   // is filed under when it ended rather than left looking like it never did.
   history.end();
