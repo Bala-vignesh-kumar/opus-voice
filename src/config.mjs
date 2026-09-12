@@ -55,6 +55,17 @@ export const DEFAULTS = {
   siriPhrase: 'falcon',     // the Shortcut's name, said as "hey siri, falcon"
 
 
+  // Phoning people. Off unless you turn it on, and the key comes from
+  // RETELL_API_KEY only — never from here, for the reason the gateway key
+  // isn't here either. A call is the second path off this machine and the
+  // worse one: it sends the voice of whoever answers. See CLAUDE.md rule 1.
+  phone: false,
+  phoneProvider: 'retell',
+  phoneFrom: '',            // the number calls come from; the provider issues it
+  phoneHoldMs: 20000,       // how long a stranger may be held while you decide
+  phoneMaxSeconds: 300,     // hard cap on one call, so a stuck agent cannot run on
+  callerName: '',           // who Falcon says it is calling for; required when phone is on
+
   ui: false,                // open the desktop window (npm run app sets this)
   spawnWindow: true,        // whether --ui also launches bin/voiceapp
   uiPort: 4477,             // loopback port for the window; steps up if taken

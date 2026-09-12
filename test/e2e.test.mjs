@@ -23,7 +23,7 @@ const strip = (text) => text.replace(/\[[0-9;]*m/g, '');
 class App {
   /** Always runs in a scratch working directory: the app writes todos.json and
    *  notes/ into it, and a test run must never touch the project. */
-  constructor({ dir = null, args = [], wakeFile = null, hook = null, whisperMode = null } = {}) {
+  constructor({ dir = null, args = [], wakeFile = null, hook = null, whisperMode = null, env = {} } = {}) {
     this.whisperMode = whisperMode;
     this.args = args;
     this.wakeFile = wakeFile;
@@ -74,6 +74,7 @@ class App {
           FALCON_WHISPER_BIN: process.execPath,
           FALCON_WHISPER_SERVER: path.join(STUBS, 'whisper_server.mjs'),
         } : {}),
+        ...env,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -811,4 +812,24 @@ test('quitting does not spawn a replacement on the way out', async () => {
   } finally {
     await app.stop();
   }
+});
+
+test('calling refuses to start without its key, rather than half-working', async () => {
+  // The same bargain the gateway struck. A path off this machine that starts
+  // anyway and fails at the moment you need it is worse than one that refuses.
+  const app = new App({ args: ['--phone', 'true'], env: { RETELL_API_KEY: '' } });
+  try {
+    await app.expect('needs RETELL_API_KEY');
+    assert.equal(await app.exited(), 1);
+  } finally { app.stop(); }
+});
+
+test('calling says out loud that it is armed', async () => {
+  // A squeeze wakes it silently and a call sends a stranger's voice off the
+  // box; the difference has to be audible at startup, not buried in a log.
+  const app = new App({ args: ['--phone', 'true'], env: { RETELL_API_KEY: 'k_test' } });
+  try {
+    await app.expect('calling is armed');
+    await app.expect('off this machine');
+  } finally { app.stop(); }
 });

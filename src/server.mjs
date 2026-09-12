@@ -53,6 +53,8 @@ export class UiServer {
     this.sessionFile = sessionFile;
     this.token = crypto.randomBytes(16).toString('hex');
     this.clients = new Set();
+    // Set only while a call is in flight; null means /consult does not exist.
+    this.consult = null;
     this.server = http.createServer((req, res) => this.#route(req, res));
 
     // One listener for the process, fanned out to however many windows are open.
@@ -105,6 +107,15 @@ export class UiServer {
       return this.#command(req, res);
     }
 
+    // The one route that is reachable from outside this machine, and only while
+    // a call is actually running — see src/tunnel.mjs. Between calls it does not
+    // exist at all, so a URL somebody kept is inert.
+    if (url.pathname === '/consult' && req.method === 'POST') {
+      if (!this.consult) return this.#missing(req, res);
+      if (!this.#authorized(req, url)) return this.#deny(req, res);
+      return this.#consult(req, res);
+    }
+
     // The library is read on demand rather than streamed: it is history, it does
     // not change while you are looking at it, and pushing every past
     // conversation down the event stream at startup would be absurd.
@@ -122,6 +133,62 @@ export class UiServer {
   #deny(req, res) {
     req.resume();
     res.writeHead(403).end('forbidden');
+  }
+
+  #missing(req, res) {
+    req.resume();
+    res.writeHead(404).end('not found');
+  }
+
+  /**
+   * Open the consult door for one call, and close it when the call ends.
+   *
+   * `handler(question)` resolves with what to tell the far end — your decision,
+   * or the promise to call back if you did not answer in time. The HTTP
+   * response is held open until it resolves, which is precisely what keeps the
+   * far end on the line.
+   */
+  expectConsult({ secret, callId, handler }) {
+    this.consult = { secret, callId, handler };
+  }
+
+  clearConsult() {
+    this.consult = null;
+  }
+
+  #consult(req, res) {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 64_000) req.destroy();
+    });
+    req.on('end', async () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        return res.writeHead(400).end('bad json');
+      }
+      const { secret, callId, handler } = this.consult ?? {};
+      // Three things, not one: the session token got it this far, the secret
+      // proves it came from the call we placed, and the id proves it is *this*
+      // call rather than a replay of the last one.
+      const theirs = parsed.metadata?.secret ?? parsed.secret;
+      const theirCall = parsed.call?.call_id ?? parsed.call_id;
+      if (!secret || theirs !== secret) return res.writeHead(403).end('forbidden');
+      if (callId && theirCall && theirCall !== callId) return res.writeHead(403).end('forbidden');
+
+      const question = parsed.args?.question ?? parsed.question ?? '';
+      let answer;
+      try {
+        answer = await handler(question);
+      } catch (err) {
+        answer = `Tell them you cannot check right now: ${err.message}`;
+      }
+      // Retell reads the string back to the agent as the function's result.
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ response: answer }));
+    });
   }
 
   #static(pathname, req, res) {

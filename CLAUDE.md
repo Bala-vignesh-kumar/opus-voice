@@ -21,7 +21,8 @@ Falcon.app (bin/falcon)                     dock icon, menus, window, squeeze
         ├── bin/voiceio (Swift)             microphone, recognizer, playback
         ├── claude (the CLI)                one long-lived streaming session
         ├── scripts/piper_server.py         text to speech
-        └── scripts/whisper_server.py       second-opinion transcription
+        ├── scripts/whisper_server.py       second-opinion transcription
+        └── cloudflared                     only while a call is running
 
 bin/falcon-window                           the window alone, for `npm run app`
 ```
@@ -41,6 +42,13 @@ the screen.
 `src/index.mjs` is the only place that decides anything. Everything else is a
 device driver. If you are adding behaviour, it almost certainly belongs there.
 
+Calling follows that split too: `src/phone.mjs` is the provider driver,
+`src/tunnel.mjs` the cloudflared driver, and `src/call.mjs` holds only which
+state a call is in and what an event implies — mechanism, on the same line
+`chunk.mjs` sits on. Whether to call, what to say, and what your answer means
+are all in `index.mjs`. `docs/superpowers/specs/2026-09-12-outbound-calling-design.md`
+has the reasoning; hard rule 1 has the parts you may not quietly change.
+
 The window is a `WKWebView` pointed at a loopback server in node (`src/server.mjs`),
 authorised by a token in the URL that is **regenerated every time node starts**.
 
@@ -51,17 +59,44 @@ authorised by a token in the URL that is **regenerated every time node starts**.
 These are settled decisions, most of them paid for in a long debugging session.
 Changing one is a real decision, not a tidy-up — say so out loud first.
 
-1. **Audio stays on the machine; the transcript may not.** No audio leaves the
-   box on any path — Whisper and Piper are local for this reason.
+1. **Two paths leave the machine, both opt-in, both announced.** Everything
+   else stays local — Whisper and Piper are on this box for that reason, and
+   the microphone's audio still goes nowhere on any ordinary turn.
 
-   The transcript is a different story since the owner made `--backend gateway`
+   The transcript leaves since the owner made `--backend gateway`
    (`src/gateway.mjs`) the default: it sends what you said to a hosted model.
    That was an explicit decision, made out loud, overriding what this rule used
-   to say. The remaining guarantees stand — it refuses to start without
-   `EXPLABS_API_KEY` in the environment, reads no key from `config.json`, and
-   announces itself out loud at startup. Keep those three. If you are adding
-   another way off the machine, it earns the same treatment — announced, and
-   written down here.
+   to say.
+
+   **Calls leave too, and they are the worse of the two.** `"phone": true`
+   (`src/phone.mjs`) lets Falcon dial a real telephone. A call necessarily
+   carries audio off the machine in both directions — including the voice of
+   whoever picks up, who never agreed to anything and is not a user of this
+   app. That asymmetry is the reason for the rules below, and it is not a
+   detail to optimise away.
+
+   Each of those paths keeps the same three guarantees, and so does the next
+   one anybody adds: it refuses to start without its key in the environment
+   (`EXPLABS_API_KEY`, `RETELL_API_KEY`), reads no key from `config.json`, and
+   announces itself out loud at startup. Keep those three.
+
+   Calling carries three more, all of them tested:
+
+   - **It says what it is.** Every call opens by naming itself an AI assistant
+     and who it is calling for. `DISCLOSURE` in `src/phone.mjs`, asserted in
+     `test/phone.test.mjs` and again over the wire in `test/booking.test.mjs`.
+     Not configurable. Somebody picked up a phone expecting a person.
+   - **It commits to nothing on its own.** The agent's only route to a booking,
+     a cancellation or a promise is `ask_my_boss`, which holds the line and
+     asks you. If you do not answer within `phoneHoldMs`, it promises a call
+     back and hangs up — it never guesses on your behalf. See
+     `CALL_BACK_INSTRUCTION` in `src/call.mjs`.
+   - **The public door is only open during a call.** `src/tunnel.mjs` runs a
+     cloudflared quick tunnel for the length of one call, and `/consult` 404s
+     whenever no call is in flight, so a leaked URL is inert. The route needs
+     the session token, the per-call secret and a matching call id.
+
+   It does not record calls. Do not add that quietly.
 
 2. **`permissionMode` stays `bypassPermissions`.** Asked and answered by the
    owner. Do not "harden" it.

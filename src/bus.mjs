@@ -111,6 +111,18 @@ export class Conversation extends EventEmitter {
   /** A tool call, shown inline so a pause reads as working rather than stuck. */
   tool(name) { return this.#push({ role: 'tool', text: name }); }
 
+  /**
+   * A phone call's state, so the window can draw a card for it.
+   *
+   * Pushed as an entry rather than kept as status because a call is part of the
+   * conversation — scrolling back a week later, "it phoned the restaurant" is
+   * exactly the thing you want to find.
+   */
+  call(state, detail = '') { return this.#push({ role: 'call', text: detail, state }); }
+
+  /** A line spoken on a call, by 'them' or by 'us'. */
+  callLine(who, text) { return this.#push({ role: 'call-line', who, text }); }
+
   /** Marks the answer that was cut off, rather than silently truncating it. */
   interrupted() {
     const last = this.entries[this.entries.length - 1];

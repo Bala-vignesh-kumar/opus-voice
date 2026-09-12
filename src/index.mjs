@@ -7,6 +7,7 @@ import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
 import { ClaudeSession } from './claude.mjs';
 import { GatewaySession } from './gateway.mjs';
@@ -31,6 +32,9 @@ import { EchoGuard } from './echo-guard.mjs';
 import { Trigger, FILE as WAKE_FILE, HOOK } from './trigger.mjs';
 import { checkShortcut } from './siri.mjs';
 import { migrate } from './migrate.mjs';
+import { Phone } from './phone.mjs';
+import { Call, STATE as CALL_STATE } from './call.mjs';
+import { Tunnel } from './tunnel.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -95,6 +99,14 @@ const claude = usingGateway
 // Said out loud once at startup rather than buried in a log: this is the one
 // mode where what you say leaves the machine, and it should never be a surprise.
 if (usingGateway) view.warn(`answering with ${config.gatewayModel} over the network — it cannot read your code, and your words leave this machine`);
+// The second path off the machine, and the worse one: a call carries the voice
+// of whoever picks up the phone. Same bargain as the gateway — it refuses to
+// start without the key, and it says so out loud rather than only in a log.
+if (config.phone && !process.env.RETELL_API_KEY) {
+  view.error('"phone": true needs RETELL_API_KEY in the environment');
+  process.exit(1);
+}
+if (config.phone) view.warn('calling is armed — Falcon can phone out, and a call sends both voices off this machine');
 const speaker = new Speaker(voice, {
   engine: config.tts,
   piperVoice: config.piperVoice,
@@ -411,7 +423,143 @@ async function fileIssue(id) {
   }
 }
 
+// MARK: the telephone
+//
+// All the policy for calls lives here; src/call.mjs holds only which state a
+// call is in, and src/phone.mjs only how to talk to the provider.
+//
+// Phase 1 starts calls through the `call` command rather than by voice. Saying
+// "call the restaurant" needs a number from somewhere, and guessing one from
+// speech is a worse idea than typing it.
+
+const phone = config.phone
+  ? new Phone({
+    fromNumber: config.phoneFrom,
+    holdMs: config.phoneHoldMs,
+  })
+  : null;
+
+/** The call in flight, or null. One at a time, on purpose. */
+let call = null;
+let tunnel = null;
+let holdTimer = null;
+/** Resolves the HTTP response the provider is blocked on. */
+let pendingConsult = null;
+
+function endTunnel() {
+  const going = tunnel;
+  tunnel = null;
+  server?.clearConsult();
+  going?.close().catch(() => {});
+}
+
+/** Turns what the state machine decided into things that actually happen. */
+function applyCall(effects) {
+  for (const effect of effects) {
+    switch (effect.type) {
+      case 'state':
+        view.call(effect.state, call?.number ?? '');
+        // A call is a conversation, so the app must not doze off in the middle
+        // of one. Sleeping mid-consult would strand somebody on the line.
+        if (call?.live) {
+          clearTimeout(sleepTimer);
+          if (mode === MODE.ASLEEP) setMode(MODE.AWAKE, null);
+        } else {
+          armSleep();
+        }
+        break;
+      case 'ask':
+        // Spoken, not asked of Claude: this is a question *for you*, and the
+        // answer goes back down the phone, not into the conversation.
+        speaker.say(effect.question);
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(() => applyCall(call?.expireHold(Date.now()) ?? []), config.phoneHoldMs);
+        break;
+      case 'resolve':
+        clearTimeout(holdTimer);
+        pendingConsult?.(effect.answer);
+        pendingConsult = null;
+        break;
+      case 'say':
+        speaker.say(effect.text);
+        break;
+      case 'report':
+        for (const line of effect.transcript) view.callLine(line.who, line.text);
+        speaker.say(
+          effect.unfinished
+            ? `The call ended without settling it: ${effect.outcome}.`
+            : `Done: ${effect.outcome}.`,
+        );
+        endTunnel();
+        call = null;
+        armSleep();
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+/** Place a call. Refuses rather than surprises you. */
+async function startCall({ number, objective }) {
+  if (!phone) return view.warn('calling is off — set "phone": true and RETELL_API_KEY.');
+  if (!config.callerName) return view.warn('set "callerName" so Falcon can say who it is calling for.');
+  if (call?.live) return speaker.say('I am already on a call.');
+  if (!number || !objective) return view.warn('a call needs a number and something to achieve.');
+  if (!server) return view.warn('the window server is not up, so a call has nowhere to ask you back.');
+
+  call = new Call({
+    objective,
+    number,
+    holdMs: config.phoneHoldMs,
+    maxSeconds: config.phoneMaxSeconds,
+  });
+
+  try {
+    // Before dialing, never in parallel: a webhook URL that is not live yet is
+    // a call that reaches a stranger and then cannot ask you anything.
+    tunnel = new Tunnel({ port: server.port });
+    tunnel.on('died', () => {
+      view.error('the tunnel went down mid-call.');
+      applyCall(call?.failed('the connection Falcon needed went down', Date.now()) ?? []);
+    });
+    const publicUrl = await tunnel.open();
+
+    const secret = randomUUID();
+    applyCall(call.dial(Date.now()));
+    const callId = await phone.dial({
+      number,
+      objective,
+      callerName: config.callerName,
+      webhook: `${publicUrl}/consult?k=${server.token}`,
+      secret,
+    });
+    call.id = callId;
+
+    server.expectConsult({
+      secret,
+      callId,
+      handler: (question) => new Promise((resolve) => {
+        pendingConsult = resolve;
+        applyCall(call.consult({ id: callId, question }, Date.now()));
+      }),
+    });
+  } catch (err) {
+    view.error(`the call could not be placed: ${err.message}`);
+    applyCall(call.failed(err.message, Date.now()));
+  }
+}
+
 function handleUtterance(text, { typed = false } = {}) {
+  // A held line beats everything else. While a call is waiting on you, what you
+  // say is a decision for the far end, not a question for Claude — and it must
+  // not be mistaken for one, because the answer is spoken down a phone.
+  if (call?.state === CALL_STATE.CONSULTING) {
+    view.you(text);
+    applyCall(call.answer(text, Date.now()));
+    return;
+  }
+
   const parsed = parseWake(text);
 
   // While taking notes the only thing worth listening for is the stop phrase.
@@ -869,6 +1017,11 @@ function handleCommand(command) {
       }
       break;
 
+    case 'call':
+      startCall({ number: command.number, objective: command.objective })
+        .catch((err) => view.error(`the call failed: ${err.message}`));
+      break;
+
     case 'interrupt':
       // The same thing talking over it does, for when you would rather not.
       turn.aborted = true;
@@ -956,6 +1109,10 @@ function shutdown(code = 0) {
   // is filed under when it ended rather than left looking like it never did.
   history.end();
   view.close();
+  // Before the server goes, so the far end is not left holding a line that
+  // nothing is listening to any more.
+  if (call?.live && call.id) phone?.hangup(call.id).catch(() => {});
+  endTunnel();
   server?.close();
   shell?.kill();
   keyboard.close();

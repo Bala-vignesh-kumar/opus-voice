@@ -530,6 +530,57 @@ a misheard instruction can now change files.
 To allow file edits but not arbitrary shell commands, set
 `"permissionMode": "acceptEdits"`.
 
+## Phoning people
+
+Off by default. Turned on, Falcon can place a call, talk to whoever answers, and
+ask you what to do when the call reaches a decision it isn't allowed to make.
+
+It asks for your table at seven. The restaurant says seven is full but eight is
+free. Falcon doesn't accept — it puts them on hold, asks you out loud, and when
+you say yes, goes back to the same call and books it.
+
+```jsonc
+{
+  "phone": true,
+  "phoneFrom": "+15550000000",   // the number your provider issued you
+  "callerName": "Vignesh",       // who it says it is calling for
+  "phoneHoldMs": 20000,          // how long someone may be held while you decide
+  "phoneMaxSeconds": 300
+}
+```
+
+It needs `RETELL_API_KEY` in the environment and refuses to start without it.
+The key is never read from `config.json`.
+
+Start a call from the window, or from the terminal:
+
+```sh
+curl -s -X POST "http://127.0.0.1:4477/command?k=$K" \
+     -H 'content-type: application/json' \
+     -d '{"cmd":"call","number":"+15107096913","objective":"a table for three at seven tonight"}'
+```
+
+Four things it will not do, by design:
+
+- **Pretend to be a person.** Every call opens by saying it is an AI assistant
+  and who it is calling for. You can't turn that off.
+- **Agree to anything without you.** No booking, no cancellation, no promise,
+  no card number. If you don't answer within `phoneHoldMs`, it tells them it
+  will call back and hangs up rather than guessing.
+- **Record the call.** It keeps the transcript so it can tell you what happened.
+- **Leave a door open.** The call reaches Falcon back through a tunnel that
+  exists only while the call does.
+
+A call sends audio off this machine in both directions, including the voice of
+whoever answers. That's the trade, and it's why this is off until you turn it on
+and why it says so out loud at startup.
+
+**What you need to know about cost:** no free tier lets you cold-call a
+stranger. Twilio's trial dials only numbers you've verified by SMS, and Vapi's
+free number can't dial out at all. Retell gives about $10 of credit, enough for
+roughly an hour of calls, which is plenty for calling your own phone and playing
+the restaurant yourself. Calling a real business needs a card.
+
 ## Tests
 
 ```sh
