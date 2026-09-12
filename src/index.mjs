@@ -240,7 +240,13 @@ function setMode(next, spoken) {
   // With holdMic off the microphone is handed back whenever it sleeps, so the
   // app leaves no trace of listening at all between conversations. Nothing it
   // can hear will wake it after that — the Shortcut does that instead.
-  if (changed && !config.holdMic && started) voice.standby(next === MODE.ASLEEP);
+  const handsBackMic = changed && !config.holdMic && started;
+  // Waking happens before it speaks; sleeping has to happen after. The engine
+  // that stops when the microphone is handed back is the same one the answer
+  // plays through, so announcing a sleep and then stopping the engine threw the
+  // announcement away — a sleep you cannot hear is indistinguishable from a
+  // crash, which is the one failure this app has no way to explain afterwards.
+  if (handsBackMic && next !== MODE.ASLEEP) voice.standby(false);
   // Called on every question to refresh the idle timer, so only announce a
   // genuine transition.
   if (changed) view.mode(next);
@@ -249,6 +255,32 @@ function setMode(next, spoken) {
   if (changed && next === MODE.ASLEEP) echo.clear();
   armSleep();
   if (spoken) speaker.say(spoken);
+  if (handsBackMic && next === MODE.ASLEEP) releaseMic(Boolean(spoken));
+}
+
+/**
+ * Hands the microphone back, once anything being said has finished.
+ *
+ * @param {boolean} afterSpeaking whether there is an announcement to wait for
+ */
+function releaseMic(afterSpeaking) {
+  if (!afterSpeaking) {
+    voice.standby(true);
+    return;
+  }
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(timer);
+    voice.off('speech-end', release);
+    voice.standby(true);
+  };
+  // A microphone held open because an announcement never finished is worse than
+  // an announcement nobody hears, so this gives up rather than waiting forever.
+  const timer = setTimeout(release, 5000);
+  timer.unref?.();
+  voice.once('speech-end', release);
 }
 
 /**

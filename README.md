@@ -196,14 +196,15 @@ than Falcon. If you miss the prompt, grant them under System Settings ›
 Privacy & Security.
 
 Requires macOS, Node 18+, the Swift toolchain (Xcode command line tools), and a
-working `claude` CLI. No API key — it uses the Claude Code auth you already have.
-(The optional hosted backend below is the one exception, and it is off by default.)
+working `claude` CLI. The default backend is the hosted gateway described below,
+which needs `EXPLABS_API_KEY`; `--backend claude` uses the Claude Code auth you
+already have and needs no key.
 
-### Answering with a hosted model instead
+### The hosted model, and answering locally instead
 
-`--backend gateway` answers with a hosted chat model over HTTP rather than the
-local CLI. It is faster to first word, needs no CLI running, and gives you any
-model the endpoint serves:
+`--backend gateway` — the default — answers with a hosted chat model over HTTP
+rather than the local CLI. It is faster to first word, needs no CLI running, and
+gives you any model the endpoint serves:
 
 ```bash
 export EXPLABS_API_KEY=xpl_...
@@ -213,9 +214,10 @@ node src/index.mjs --backend gateway --gateway-model gpt-5.4
 **Two things you give up, and they are not small.** The hosted model has no
 tools, so it cannot read your project — ask it why the wake word is dropping and
 it will guess, where the CLI goes and reads `wake.mjs`. And what you say leaves
-the machine: your words go to whoever runs the endpoint. Everything else in
-Falcon is local by design, and this is the one door out of that. It stays shut
-unless you open it, and Falcon says so out loud at startup when you do.
+the machine: your words go to whoever runs the endpoint. Audio never does, and
+everything else in Falcon is still local, but this door is now open by default.
+Falcon says so out loud at startup every time. Run `--backend claude` to close
+it: that path reads your code and keeps every word on the box.
 
 Any OpenAI-compatible endpoint works — point `gatewayUrl` at your own. The key
 is read from `EXPLABS_API_KEY` in the environment and is never read from
@@ -453,7 +455,7 @@ three independent guards against it interrupting itself.
 
 | key | default | what it does |
 |---|---|---|
-| `backend` | `claude` | `claude` (local CLI, reads your code) or `gateway` (hosted model — see below) |
+| `backend` | `gateway` | `gateway` (hosted model — see below) or `claude` (local CLI, reads your code) |
 | `gatewayModel` | `gpt-6-astra` | model name, when `backend` is `gateway` |
 | `gatewayUrl` | Experiential Labs | any OpenAI-compatible `/v1` endpoint |
 | `model` | `opus` | any alias the `claude` CLI accepts |

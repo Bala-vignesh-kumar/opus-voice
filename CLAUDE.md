@@ -51,17 +51,17 @@ authorised by a token in the URL that is **regenerated every time node starts**.
 These are settled decisions, most of them paid for in a long debugging session.
 Changing one is a real decision, not a tidy-up — say so out loud first.
 
-1. **Everything stays on the machine, unless the owner asks otherwise.** No
-   audio and no transcript leaves the box on any default path. This is the
-   product, not an implementation detail, and the README promises it. Whisper
-   and Piper are local for this reason.
+1. **Audio stays on the machine; the transcript may not.** No audio leaves the
+   box on any path — Whisper and Piper are local for this reason.
 
-   The one exception is `--backend gateway` (`src/gateway.mjs`), which sends the
-   transcript to a hosted model. It is off by default, refuses to start without
+   The transcript is a different story since the owner made `--backend gateway`
+   (`src/gateway.mjs`) the default: it sends what you said to a hosted model.
+   That was an explicit decision, made out loud, overriding what this rule used
+   to say. The remaining guarantees stand — it refuses to start without
    `EXPLABS_API_KEY` in the environment, reads no key from `config.json`, and
-   announces itself out loud at startup. Keep all four of those. If you are
-   adding another way off the machine, it earns the same treatment — opt-in,
-   announced, and written down here.
+   announces itself out loud at startup. Keep those three. If you are adding
+   another way off the machine, it earns the same treatment — announced, and
+   written down here.
 
 2. **`permissionMode` stays `bypassPermissions`.** Asked and answered by the
    owner. Do not "harden" it.

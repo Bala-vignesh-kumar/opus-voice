@@ -7,12 +7,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const DEFAULTS = {
-  // 'claude' answers with the local CLI: it can read the project you point it
-  // at, and every word stays on the machine. 'gateway' answers with a hosted
-  // chat model — faster, always available, but it has no tools, so it cannot
-  // look at your code, and what you say is sent off the box. The first hard
-  // rule in CLAUDE.md is why that one is opt-in and not the default.
-  backend: 'claude',
+  // 'gateway' answers with a hosted chat model — faster, always available, but
+  // it has no tools, so it cannot look at your code, and what you say is sent
+  // off the box. 'claude' answers with the local CLI: it can read the project
+  // you point it at, and every word stays on the machine. The owner chose the
+  // gateway as the default; the startup warning is what keeps it honest.
+  backend: 'gateway',
   gatewayUrl: 'https://api.experientiallabs.ai/v1',
   gatewayModel: 'gpt-6-astra',
   // The key is read from EXPLABS_API_KEY and never from here: config.json is

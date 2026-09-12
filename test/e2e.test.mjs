@@ -38,6 +38,12 @@ class App {
     this.out = '';
     this.child = spawn(process.execPath, [
       path.join(ROOT, 'src', 'index.mjs'),
+      // Asked for by name rather than inherited from the defaults. The stub in
+      // test/stubs/claude.mjs stands in for the CLI, so these cases need that
+      // backend whatever the default happens to be — and once the default
+      // became the gateway, inheriting it meant every case here booted an app
+      // that exited for want of an API key.
+      '--backend', 'claude',
       '--tts', 'apple',
       '--greeting', '',
       // Long enough that the idle timer never fires mid-test and turns a
