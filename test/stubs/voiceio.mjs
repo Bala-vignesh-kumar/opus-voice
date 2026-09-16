@@ -54,22 +54,65 @@ if (INJECT) {
 // how a "notes saved" announcement once left the window on "speaking" forever.
 let standby = false;
 
+// Playback, modelled closely enough to reproduce two real failures.
+//
+// STUB_VOICE_SPEECH_MS is how long a line takes to play; lines queue behind
+// one another as they do in the daemon, which is what let "going to sleep."
+// start after the microphone had already been handed back. STUB_VOICE_MUTE=1
+// wedges the player the way a fresh session's did on 16 Sep 2026: a line
+// starts, no output level is ever reported, and it never ends — until a
+// standby cycle resets it, which is what fixed the real one.
+const SPEECH_MS = Number(process.env.STUB_VOICE_SPEECH_MS || 0);
+let muted = process.env.STUB_VOICE_MUTE === '1';
+// A line has stalled on the wedged player. The real one only came right after
+// a standby cycle *following* the stall — the first wake from asleep is a cycle
+// too, and it did not help, so a cycle before any stall must not either.
+let wedged = false;
+let speaking = false;
+const queue = [];
+
+function record(text) {
+  if (!process.env.STUB_VOICE_SPOKEN) return;
+  const mark = standby ? '(into standby) ' : muted ? '(silent) ' : '';
+  fs.appendFileSync(process.env.STUB_VOICE_SPOKEN, `${mark}${text}\n`);
+}
+
+function playNext() {
+  if (speaking || queue.length === 0) return;
+  const text = queue.shift();
+  speaking = true;
+  record(text);
+  emit({ type: 'speech_start', text });
+  if (muted) wedged = true;
+  if (standby || muted) return;          // starts, and never ends
+  emit({ type: 'level', source: 'out', rms: 0.2 });
+  const finish = () => {
+    if (!speaking) return;
+    speaking = false;
+    emit({ type: 'speech_end', interrupted: false });
+    playNext();
+  };
+  if (SPEECH_MS > 0) setTimeout(finish, SPEECH_MS);
+  else finish();
+}
+
 readline.createInterface({ input: process.stdin }).on('line', (line) => {
   let command;
   try { command = JSON.parse(line); } catch { return; }
   if (command.cmd === 'speak') {
-    // Recorded so tests can assert on what was said aloud, which is otherwise
-    // invisible: the terminal view prints a spinner, not the words. A line sent
-    // into standby is recorded as such: nobody heard it.
-    if (process.env.STUB_VOICE_SPOKEN) {
-      const text = standby ? `(into standby) ${command.text}` : command.text;
-      fs.appendFileSync(process.env.STUB_VOICE_SPOKEN, `${text}\n`);
+    queue.push(command.text);
+    playNext();
+  }
+  if (command.cmd === 'stop') {
+    queue.length = 0;
+    if (speaking) {
+      speaking = false;
+      emit({ type: 'speech_end', interrupted: true });
     }
-    emit({ type: 'speech_start', text: command.text });
-    if (!standby) emit({ type: 'speech_end', interrupted: false });
   }
   if (command.cmd === 'standby') {
     standby = Boolean(command.on);
+    if (!standby && wedged) muted = false;   // the cycle is what un-wedges it
     emit({ type: 'standby', on: standby });
   }
   if (command.cmd === 'pcm_start') emit({ type: 'speech_start', text: command.text });

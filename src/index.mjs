@@ -290,23 +290,36 @@ function settleOwedMic() {
  * @param {boolean} afterSpeaking whether there is an announcement to wait for
  */
 function releaseMic(afterSpeaking) {
-  if (!afterSpeaking) {
+  const quiet = () => speaker.idle && !voice.speaking;
+  if (!afterSpeaking && quiet()) {
     voice.standby(true);
     return;
   }
+  // Waits for the queue to empty, not for the next speech-end. On 16 Sep 2026
+  // "going to sleep." was queued behind an answer still playing; the answer's
+  // end arrived first, the microphone was handed back on it, and the
+  // announcement then played into a stopped engine — never heard, and never
+  // reported finished, which left the window's speaking flag stuck on.
   let released = false;
+  let timer = null;
   const release = () => {
     if (released) return;
     released = true;
     clearTimeout(timer);
-    voice.off('speech-end', release);
+    voice.off('speech-end', check);
     voice.standby(true);
   };
   // A microphone held open because an announcement never finished is worse than
-  // an announcement nobody hears, so this gives up rather than waiting forever.
-  const timer = setTimeout(release, 5000);
-  timer.unref?.();
-  voice.once('speech-end', release);
+  // an announcement nobody hears, so this gives up rather than waiting forever —
+  // five seconds of nothing ending, not five seconds in total.
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(release, 5000);
+    timer.unref?.();
+  };
+  const check = () => (quiet() ? release() : arm());
+  arm();
+  voice.on('speech-end', check);
 }
 
 /**
@@ -819,14 +832,62 @@ voice.on('bargein', () => {
   if (turn.line) view.interrupted();
 });
 
-voice.on('speech-start', () => view.speaking(true));
+voice.on('speech-start', () => {
+  view.speaking(true);
+  watchPlayback();
+});
 
 voice.on('speech-end', () => {
+  clearTimeout(playbackWatch);
   view.speaking(false);
   if (!claude.busy && !voice.speaking) view.clearLive();
 });
 
-voice.on('level', ({ source, rms }) => view.level(source, rms));
+voice.on('level', ({ source, rms }) => {
+  if (source === 'out' && rms > 0) outHeard = true;
+  view.level(source, rms);
+});
+
+// Sound that never comes out.
+//
+// 16 Sep 2026: a fresh session answered two questions in a row with the text
+// on screen, the spinner saying "speaking", and not one frame reaching the
+// mixer — the daemon's player had wedged after its first standby, and stayed
+// wedged until the next standby cycle reset it. Nothing reported it, because
+// the audio really had been scheduled; it just never played. The mixer tap is
+// the one witness: it emits an output level while anything is audible, so an
+// utterance that has been "speaking" for this long with no output level is
+// silent, whatever the daemon believes. One standby cycle is what fixed it
+// by hand, so that is what is done here, once, and the line is said again.
+const PLAYBACK_WATCH_MS = 2500;
+let outHeard = false;
+let playbackWatch = null;
+let lastRevive = 0;
+
+function watchPlayback() {
+  outHeard = false;
+  clearTimeout(playbackWatch);
+  playbackWatch = setTimeout(() => {
+    if (outHeard || !voice.speaking) return;
+    // Asleep with the microphone released there is no engine to cycle, and
+    // reopening it would be a wake nobody asked for.
+    const canCycle = mode !== MODE.ASLEEP || config.holdMic;
+    if (!canCycle || Date.now() - lastRevive < 60_000) {
+      view.warn('no sound is coming out of that answer');
+      return;
+    }
+    lastRevive = Date.now();
+    view.warn('no sound came out of that — restarting the audio engine and saying it again');
+    // Everything not yet heard, in order: the line that stalled and whatever
+    // was queued behind it. stop() forgets them, so they are copied first.
+    const again = [...speaker.unfinished];
+    speaker.stop();
+    voice.standby(true);
+    voice.standby(false);
+    for (const line of again) speaker.say(line);
+  }, PLAYBACK_WATCH_MS);
+  playbackWatch.unref?.();
+}
 
 voice.on('standby', (on) => view.note(on ? 'microphone released' : 'microphone open'));
 voice.on('note', (message) => view.note(message));

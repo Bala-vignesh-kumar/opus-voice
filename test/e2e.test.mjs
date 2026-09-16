@@ -888,3 +888,60 @@ test('its own answer is refused even when Whisper mishears it', async () => {
     );
   } finally { app.stop(); }
 });
+
+test('the sleep announcement is heard before the microphone is handed back', async () => {
+  // 16 Sep 2026: "going to sleep." was queued behind an answer still playing.
+  // The answer's end arrived first, the microphone was handed back on it, and
+  // the announcement played into a stopped engine — never heard, never ended,
+  // and the window's speaking flag stayed on for the rest of the session.
+  const app = new App({ env: { STUB_VOICE_SPEECH_MS: '300' } });
+  try {
+    await app.expect('Falcon');
+    app.type("hey falcon let's discuss");
+    await app.waitForMode('chat');
+    app.type('how is the build');
+    await app.expect('This is the stub answer.');
+    // While that is still playing:
+    app.type('hey falcon stop');
+    await app.expect('microphone released');
+    await app.settle();
+
+    const spoken = app.spoken();
+    assert.ok(spoken.some((l) => l.includes('going to sleep')), `never announced sleep:\n${spoken.join('\n')}`);
+    assert.ok(
+      !spoken.some((l) => l.startsWith('(into standby)')),
+      `spoken into a stopped engine:\n${spoken.join('\n')}`,
+    );
+  } finally { app.stop(); }
+});
+
+test('an answer that makes no sound is noticed, and said again', async () => {
+  // 16 Sep 2026: a fresh session's player wedged after its first standby. Two
+  // answers went by with the spinner on "speaking" and nothing reaching the
+  // mixer; a standby cycle, done by hand, is what brought sound back.
+  const app = new App({ env: { STUB_VOICE_MUTE: '1' } });
+  try {
+    await app.expect('Falcon');
+    app.type("hey falcon let's discuss");
+    await app.waitForMode('chat');
+    app.type('how is the build');
+    await app.expect('This is the stub answer.');
+    await app.expect('no sound came out');
+    await app.expect('microphone open', 8000);
+
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline && !app.spoken().includes('This is the stub answer.')) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const spoken = app.spoken();
+    // The first line stalled silently, the answer was queued behind it, and
+    // after the restart both were actually heard, in order.
+    const stalled = spoken.indexOf("(silent) sure, let's talk.");
+    const heard = spoken.indexOf("sure, let's talk.");
+    const answer = spoken.indexOf('This is the stub answer.');
+    assert.ok(stalled !== -1, `nothing stalled:\n${spoken.join('\n')}`);
+    assert.ok(heard > stalled, `the stalled line was not said again:\n${spoken.join('\n')}`);
+    assert.ok(answer > heard, `the queued answer was not heard after it:\n${spoken.join('\n')}`);
+    assert.ok(!spoken.some((l) => l.startsWith('(silent) This is')), 'the answer was lost to the wedge');
+  } finally { app.stop(); }
+});

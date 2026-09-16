@@ -28,6 +28,11 @@ export class Speaker extends EventEmitter {
     this.busy = false;
     this.nextId = 1;
     this.activeId = null;
+    // Lines handed over that have not finished playing, oldest first,
+    // whichever engine. Apple queues inside the daemon where nothing here can
+    // see it, so this is the only record that a queued announcement is still
+    // to come — and the only way to say them again if the player wedges.
+    this.unfinished = [];
 
     if (engine === 'piper') {
       if (!piperAvailable(piperVoice)) {
@@ -39,6 +44,7 @@ export class Speaker extends EventEmitter {
 
     // Playback finished in the daemon: release the queue for the next line.
     voice.on('speech-end', () => {
+      this.unfinished.shift();
       if (this.engine !== 'piper') return;
       this.busy = false;
       this.activeId = null;
@@ -48,6 +54,11 @@ export class Speaker extends EventEmitter {
 
   get name() {
     return this.engine === 'piper' ? 'piper' : 'apple';
+  }
+
+  /** Nothing playing and nothing waiting to. */
+  get idle() {
+    return this.unfinished.length === 0 && this.queue.length === 0 && !this.busy;
   }
 
   #startPiper(voiceName) {
@@ -96,6 +107,7 @@ export class Speaker extends EventEmitter {
     // callers and a list kept at each of them would be wrong within a week.
     // src/echo-guard.mjs is what listens, and says why anything needs to know.
     this.emit('said', clean);
+    this.unfinished.push(clean);
     if (this.engine !== 'piper') {
       this.voice.speak(clean);
       return;
@@ -117,6 +129,7 @@ export class Speaker extends EventEmitter {
   stop() {
     this.queue = [];
     this.busy = false;
+    this.unfinished = [];
     // Bumping the id orphans any audio still streaming from the interrupted line.
     this.activeId = null;
     this.voice.stop();
