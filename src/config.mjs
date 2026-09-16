@@ -7,12 +7,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const DEFAULTS = {
-  // 'gateway' answers with a hosted chat model — faster, always available, but
-  // it has no tools, so it cannot look at your code, and what you say is sent
-  // off the box. 'claude' answers with the local CLI: it can read the project
-  // you point it at, and every word stays on the machine. The owner chose the
-  // gateway as the default; the startup warning is what keeps it honest.
-  backend: 'gateway',
+  // 'claude' answers with the local CLI: it can read the project you point it
+  // at, every word stays on the machine, and it costs nothing beyond the
+  // Claude Code login you already have. 'gateway' answers with a hosted chat
+  // model — faster to first word, but it has no tools and what you say leaves
+  // the box, and it needs a paid key. The gateway was the default for a while;
+  // an app launched at login has no EXPLABS_API_KEY in its environment, so that
+  // default meant Falcon.app died silently at startup. The owner asked for
+  // free and local, so this is 'claude' again and the gateway is opt-in.
+  backend: 'claude',
   gatewayUrl: 'https://api.experientiallabs.ai/v1',
   gatewayModel: 'gpt-6-astra',
   // The key is read from EXPLABS_API_KEY and never from here: config.json is

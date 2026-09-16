@@ -265,20 +265,20 @@ test('closing mid-turn stops the stream and clears busy', async () => {
 
 // --- the switch that chooses a backend -------------------------------------
 
-// The owner's decision, recorded here so a later "surely the local one is the
-// default" is a failing test rather than a quiet change of mind. What keeps it
-// honest is the startup warning, not the default — see hard rule 1.
-test('the gateway is the default, with a model and a url to go with it', () => {
+// The owner's decision, recorded here so a quiet change of mind is a failing
+// test. The gateway was the default for a while, and it meant the app died at
+// login for want of a key nobody had exported there. Free and local won.
+test('the local CLI is the default, and the gateway keeps a model and a url ready', () => {
   process.env.FALCON_IGNORE_CONFIG = '1';
   const config = loadConfig([]);
-  assert.equal(config.backend, 'gateway');
+  assert.equal(config.backend, 'claude');
   assert.equal(config.gatewayModel, 'gpt-6-astra');
   assert.match(config.gatewayUrl, /^https:\/\//);
 });
 
-test('the local CLI is still reachable by flag', () => {
+test('the gateway is still reachable by flag', () => {
   process.env.FALCON_IGNORE_CONFIG = '1';
-  assert.equal(loadConfig(['--backend', 'claude']).backend, 'claude');
+  assert.equal(loadConfig(['--backend', 'gateway']).backend, 'gateway');
 });
 
 test('the model is overridable at launch, without touching config', () => {

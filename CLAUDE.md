@@ -63,10 +63,12 @@ Changing one is a real decision, not a tidy-up — say so out loud first.
    else stays local — Whisper and Piper are on this box for that reason, and
    the microphone's audio still goes nowhere on any ordinary turn.
 
-   The transcript leaves since the owner made `--backend gateway`
-   (`src/gateway.mjs`) the default: it sends what you said to a hosted model.
-   That was an explicit decision, made out loud, overriding what this rule used
-   to say.
+   The transcript leaves when `--backend gateway` (`src/gateway.mjs`) is on:
+   it sends what you said to a hosted model. It was the default for a while,
+   by the owner's explicit decision; it is opt-in again because a login-launched
+   app has no `EXPLABS_API_KEY` in its environment, so the default meant
+   Falcon.app exited at startup with one line in a log nobody reads — and
+   because the owner then asked for free and local.
 
    **Calls leave too, and they are the worse of the two.** `"phone": true`
    (`src/phone.mjs`) lets Falcon dial a real telephone. A call necessarily
