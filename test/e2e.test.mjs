@@ -945,3 +945,16 @@ test('an answer that makes no sound is noticed, and said again', async () => {
     assert.ok(!spoken.some((l) => l.startsWith('(silent) This is')), 'the answer was lost to the wedge');
   } finally { app.stop(); }
 });
+
+test('the greeting is heard before the microphone is handed back', async () => {
+  // It was spoken after standby: into a stopped engine, unheard, and its end
+  // never came — so every session began with the speaking flag stuck on.
+  const app = new App({ args: ['--greeting', 'hello there'] });
+  try {
+    await app.expect('microphone released');
+    await app.settle();
+    const spoken = app.spoken();
+    assert.ok(spoken.includes('hello there'), `the greeting was not heard:\n${spoken.join('\n')}`);
+    assert.ok(!spoken.some((l) => l.startsWith('(into standby)')), `spoken into standby:\n${spoken.join('\n')}`);
+  } finally { app.stop(); }
+});

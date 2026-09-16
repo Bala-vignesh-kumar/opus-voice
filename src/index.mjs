@@ -698,8 +698,16 @@ voice.on('ready', (event) => {
     view.warn('on-device speech model missing — recognition is going over the network');
   }
   pushTodos();
+  // Said before the microphone is handed back, and the handover waits for it.
+  // It used to come after: the greeting went into an engine standby had just
+  // stopped, nobody heard it, and its speech-end never came — so the window's
+  // speaking flag was stuck on from the first second of every session. The
+  // playback watchdog's "no sound is coming out" at startup was the first
+  // anyone knew.
+  if (config.greeting) speaker.say(config.greeting);
   if (!config.holdMic) {
-    voice.standby(mode === MODE.ASLEEP);
+    if (mode === MODE.ASLEEP) releaseMic(!speaker.idle);
+    else voice.standby(false);
     // Releasing the mic means nothing it can hear will wake it. If the Siri
     // hook is not installed there is then no way in but typing, and an app that
     // silently ignores you is the worst possible outcome — so say so loudly.
@@ -719,7 +727,6 @@ voice.on('ready', (event) => {
       view.warn('or set "holdMic": true to listen for the wake phrase instead');
     }
   }
-  if (config.greeting) speaker.say(config.greeting);
   view.mode(mode);
 
   started = true;
