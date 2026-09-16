@@ -49,19 +49,29 @@ if (INJECT) {
   }, 40).unref?.();
 }
 
+// Whether the microphone has been handed back. The real daemon stops its audio
+// engine in standby, so anything sent to it then starts and never ends — that is
+// how a "notes saved" announcement once left the window on "speaking" forever.
+let standby = false;
+
 readline.createInterface({ input: process.stdin }).on('line', (line) => {
   let command;
   try { command = JSON.parse(line); } catch { return; }
   if (command.cmd === 'speak') {
     // Recorded so tests can assert on what was said aloud, which is otherwise
-    // invisible: the terminal view prints a spinner, not the words.
+    // invisible: the terminal view prints a spinner, not the words. A line sent
+    // into standby is recorded as such: nobody heard it.
     if (process.env.STUB_VOICE_SPOKEN) {
-      fs.appendFileSync(process.env.STUB_VOICE_SPOKEN, `${command.text}\n`);
+      const text = standby ? `(into standby) ${command.text}` : command.text;
+      fs.appendFileSync(process.env.STUB_VOICE_SPOKEN, `${text}\n`);
     }
     emit({ type: 'speech_start', text: command.text });
-    emit({ type: 'speech_end', interrupted: false });
+    if (!standby) emit({ type: 'speech_end', interrupted: false });
   }
-  if (command.cmd === 'standby') emit({ type: 'standby', on: Boolean(command.on) });
+  if (command.cmd === 'standby') {
+    standby = Boolean(command.on);
+    emit({ type: 'standby', on: standby });
+  }
   if (command.cmd === 'pcm_start') emit({ type: 'speech_start', text: command.text });
   if (command.cmd === 'pcm_end') emit({ type: 'speech_end', interrupted: false });
   // Lets the test inject a recognized utterance as though it had been spoken.

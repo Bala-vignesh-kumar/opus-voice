@@ -833,3 +833,32 @@ test('calling says out loud that it is armed', async () => {
     await app.expect('off this machine');
   } finally { app.stop(); }
 });
+
+test('the notes announcement is heard before the microphone is handed back', async () => {
+  // Stopping note mode sleeps at once, and sleeping hands the microphone back at
+  // once — but the summary arrives seconds later and is announced out loud.
+  // Announced into a stopped engine it was never heard, and the engine never
+  // said it had finished, so the window sat on "speaking" until the next turn.
+  const app = new App();
+  try {
+    await app.expect('Falcon');
+    app.type('hey falcon listen');
+    await app.expect('taking notes');
+    app.type('the catch block marks it processed even when it threw');
+    app.type('hey falcon stop');
+    await app.expect('notes saved to');
+
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline && !app.spoken().some((l) => /notes|saved|redis/i.test(l))) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const summary = app.spoken().filter((l) => /notes|saved|redis/i.test(l));
+    assert.ok(summary.length, `the summary was never announced\n${app.spoken().join('\n')}`);
+    assert.ok(
+      !summary.some((l) => l.startsWith('(into standby)')),
+      `the summary was spoken into a stopped engine:\n${summary.join('\n')}`,
+    );
+    // And the microphone is still handed back afterwards; sleep is not skipped.
+    await app.expect('microphone released');
+  } finally { app.stop(); }
+});

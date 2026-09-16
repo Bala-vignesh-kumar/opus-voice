@@ -152,6 +152,13 @@ const MODE = { ASLEEP: 'asleep', AWAKE: 'awake', CHAT: 'chat', NOTE: 'note' };
 // With the wake word off it behaves as it did before: always listening.
 let mode = config.wakeWord ? MODE.ASLEEP : MODE.CHAT;
 let sleepTimer = null;
+// Set while a note summary is still on its way after the app has gone to sleep.
+// Sleeping normally hands the microphone back at once, but the summary is
+// announced out loud when it lands, and the engine that plays it is the one
+// standby stops — so the handover waits until that announcement has been heard.
+// Without this the "notes saved" line went into a stopped engine: never spoken,
+// and its speech-end never came, which left the window on "speaking" forever.
+let micOwed = false;
 
 let started = false;            // voiceio has finished audio setup
 const typedBacklog = [];
@@ -267,7 +274,14 @@ function setMode(next, spoken) {
   if (changed && next === MODE.ASLEEP) echo.clear();
   armSleep();
   if (spoken) speaker.say(spoken);
-  if (handsBackMic && next === MODE.ASLEEP) releaseMic(Boolean(spoken));
+  if (handsBackMic && next === MODE.ASLEEP && !micOwed) releaseMic(Boolean(spoken));
+}
+
+/** The summary has been announced; hand the microphone back if sleep was waiting on it. */
+function settleOwedMic() {
+  if (!micOwed) return;
+  micOwed = false;
+  if (mode === MODE.ASLEEP && !config.holdMic && started) releaseMic(true);
 }
 
 /**
@@ -327,6 +341,9 @@ function finishNotes() {
     return;
   }
   const transcript = notes.transcript();
+  // The summary is spoken when it arrives, seconds from now, and sleeping hands
+  // the microphone back — see micOwed for why that order matters.
+  if (!config.holdMic) micOwed = true;
   // "falcon stop" means stop, in note mode as much as anywhere else. Landing
   // awake here left it answering a room that had just finished talking to each
   // other, which is the one situation note mode exists to avoid. Silent,
@@ -776,7 +793,10 @@ voice.on('final', async (text) => {
 });
 
 voice.on('bargein', () => {
-  if (!claude.busy && !turn.spoke) return;
+  // Nothing to cut: the answer is finished and its audio has stopped. Before
+  // this used `turn.spoke`, which stays true after a turn ends, so a stray
+  // word in the room marked the last finished answer as interrupted.
+  if (!claude.busy && !voice.speaking) return;
   // Two words are enough to count as an interruption, and "hang on" is two
   // words. Without this it hears its own thinking beat and cuts itself off to
   // listen to itself.
@@ -893,6 +913,7 @@ claude.on('turn-end', () => {
       view.warn('the summary was interrupted — the discussion is still held');
       view.note(`say "${wakePhrase()} summarize" to write it`);
       speaker.say('I did not finish those notes. Say summarize when you want them.');
+      settleOwedMic();
     } else {
       const { title, actions, written, spoken } = splitSummary(turn.raw);
       try {
@@ -912,6 +933,7 @@ claude.on('turn-end', () => {
       } catch (err) {
         view.error(`could not save notes: ${err.message}`);
       }
+      settleOwedMic();
     }
   }
 
@@ -1024,6 +1046,7 @@ function handleCommand(command) {
 
     case 'interrupt':
       // The same thing talking over it does, for when you would rather not.
+      if (!claude.busy && !voice.speaking) break;
       turn.aborted = true;
       clearTimeout(turn.fillerTimer);
       speaker.stop();
