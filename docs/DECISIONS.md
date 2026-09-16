@@ -89,6 +89,40 @@ the user interrupting: it cut itself off to listen to itself.
 Guard 2 is the one that still works on bluetooth output, where guard 1 is
 refused outright.
 
+#### Echo cancellation on, and it still heard itself — 16 Sep 2026
+
+Same route as above — MacBook Pro Speakers out, built-in microphone in — but
+this time `"echoCancellation": true`, and `EchoPolicy` enabled it (no warning
+in the log; the output is not bluetooth). The answer still came back:
+
+```
+falcon  Sure — I'm talking. Want me to keep going so you can hear the new voice…
+···  Sure, I        (interrupted)
+···  Sure, I'm talking.   ···  Want me to keep going so
+        audio dumped to /tmp/dump-4.wav (7.2s, peak 0.243)
+you  So I'm talking on my bookie drawings like any other new files, files,
+```
+
+**Measured** on the dump: 7.2 s, 16 kHz, no clipping, energy a steady −27 to
+−36 dB across the whole buffer, peak 0.243. Whisper `base` heard "bookie
+drawings"; Whisper `small` heard "Sure, I am talking on my to keep going so
+you can hear the new voice" — the app's own sentence. So the voice-processing
+unit did **not** cancel Piper's playback to anything like silence: the residual
+was loud enough for two recognizers to transcribe it.
+
+Two guards should have caught it and did not, and both are fixed:
+
+1. Barge-in fired on the partial `Sure, I` — two words, so it counted — and
+   `isEcho` compared `i` against `i'm` and said no. Partials stop mid-word.
+   `isEcho(text, { partial: true })` now lets the last word be a prefix.
+2. The final was checked only after Whisper had replaced it. Apple's text was
+   the app's sentence verbatim; Whisper's was garbage that matched nothing.
+   The system recognizer's text is now checked first.
+
+**Not fixed, and worth knowing:** why VPIO leaks this much with the player on
+the same engine is still open. The software guards are the real defence, as the
+4 Sep section already says; the setting is a reduction, not a seal.
+
 ### An AirPods squeeze needs an audio stream to exist
 
 **The most expensive finding in the project.** AirPods only emit an AVRCP

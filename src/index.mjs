@@ -771,6 +771,17 @@ voice.on('final', async (text) => {
   const audio = lastUtterance;
   lastUtterance = null;
 
+  // Checked on the system recognizer's text before Whisper gets a say. On
+  // 16 Sep 2026 the microphone heard the answer playing — the partials read
+  // "Sure, I'm talking. Want me to keep going", word for word — and Whisper
+  // turned that buffer into "bookie drawings", which matched nothing, so the
+  // app asked Claude about its own garbled voice. What Apple heard was the
+  // proof; it just was not looked at.
+  if (echo.isEcho(text)) {
+    view.note(`ignored its own voice: "${text}"`);
+    return;
+  }
+
   let heard = text;
   if (whisper && audio?.pcm) {
     const better = await whisper.transcribe(audio.pcm, audio.sampleRate);
@@ -800,7 +811,7 @@ voice.on('bargein', () => {
   // Two words are enough to count as an interruption, and "hang on" is two
   // words. Without this it hears its own thinking beat and cuts itself off to
   // listen to itself.
-  if (echo.isEcho(lastPartial)) return;
+  if (echo.isEcho(lastPartial, { partial: true })) return;
   turn.aborted = true;
   clearTimeout(turn.fillerTimer);
   speaker.stop();

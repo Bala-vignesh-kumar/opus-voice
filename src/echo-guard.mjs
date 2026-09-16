@@ -42,12 +42,16 @@ function words(text) {
  * would make "sure" match "are you sure about that", which is a person asking a
  * question.
  */
-function runOf(heard, said) {
+function runOf(heard, said, { partial = false } = {}) {
   if (heard.length === 0 || heard.length > said.length) return false;
+  const last = heard.length - 1;
   for (let i = 0; i + heard.length <= said.length; i += 1) {
     let hit = true;
     for (let j = 0; j < heard.length; j += 1) {
-      if (said[i + j] !== heard[j]) { hit = false; break; }
+      const same = said[i + j] === heard[j]
+        // A partial is cut mid-word: "Sure, I" is on its way to "Sure, I'm".
+        || (partial && j === last && said[i + j].startsWith(heard[j]));
+      if (!same) { hit = false; break; }
     }
     if (hit) return true;
   }
@@ -89,13 +93,17 @@ export class EchoGuard {
    * A single word only counts when it is the whole of what was said — "sure"
    * looping is the app, but "read" out of "I will read the file now" is a
    * person giving an instruction that happens to share a verb.
+   *
+   * `partial` is for the recognizer's interim text, which stops mid-word: the
+   * barge-in that cut the app off on 16 Sep 2026 fired on "Sure, I" while it
+   * was saying "Sure — I'm talking", and "i" is not "i'm" until the word ends.
    */
-  isEcho(text) {
+  isEcho(text, { partial = false } = {}) {
     const heard = words(text);
     if (heard.length === 0) return false;
     this.#prune();
     return this.#recent.some(({ said }) =>
-      runOf(heard, said) && (heard.length === said.length || heard.length >= 2));
+      runOf(heard, said, { partial }) && (heard.length === said.length || heard.length >= 2));
   }
 
   /** Forgets everything. The conversation is over; nothing is still in the air. */

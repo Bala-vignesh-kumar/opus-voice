@@ -110,3 +110,17 @@ test('a single short word is not enough to call it an echo', () => {
   // "read" alone is a person giving an instruction, not the answer looping.
   assert.equal(g.isEcho('read'), false);
 });
+
+test('a partial cut off mid-word is still its own voice', () => {
+  // 16 Sep 2026: it was saying "Sure — I'm talking" when the recognizer's
+  // interim text reached "Sure, I" — two words, so barge-in fired, and "i" is
+  // not "i'm", so the guard let it through. It cut itself off.
+  const { g } = guard();
+  g.said("Sure — I'm talking. Want me to keep going?");
+  assert.ok(g.isEcho('Sure, I', { partial: true }), 'the partial is on its way to its own sentence');
+  // A finished transcript gets no such latitude: "Sure, I" as a whole turn is
+  // not what it said.
+  assert.equal(g.isEcho('Sure, I'), false);
+  // And a partial heading somewhere else is a person.
+  assert.equal(g.isEcho('Sure, it', { partial: true }), false);
+});

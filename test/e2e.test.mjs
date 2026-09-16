@@ -862,3 +862,29 @@ test('the notes announcement is heard before the microphone is handed back', asy
     await app.expect('microphone released');
   } finally { app.stop(); }
 });
+
+test('its own answer is refused even when Whisper mishears it', async () => {
+  // 16 Sep 2026: the speakers played the answer, the microphone heard it, and
+  // Apple's recognizer transcribed it word for word — but Whisper made "bookie
+  // drawings" of the same buffer, only Whisper's text was checked, and the app
+  // asked Claude about its own garbled voice. The stub Whisper here always
+  // returns "what files are in this project", which is the same shape of wrong.
+  const app = new App({ args: ['--echo-window-ms', '600000'], whisperMode: 'ok' });
+  try {
+    await app.expect('Falcon');
+    app.type("hey falcon let's discuss");
+    await app.waitForMode('chat');
+    app.type('how is the build');
+    await app.asked_('how is the build');
+    await app.expect('This is the stub answer.');
+
+    app.speak('This is the stub answer.');
+    await app.expect('ignored its own voice');
+    await app.settle();
+
+    assert.deepEqual(
+      app.asked().filter((t) => t.includes('what files')), [],
+      'it asked Claude what Whisper made of its own voice',
+    );
+  } finally { app.stop(); }
+});
