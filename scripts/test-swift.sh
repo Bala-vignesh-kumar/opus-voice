@@ -23,5 +23,6 @@ swiftc -o "$out" \
   swift/EchoPolicy.swift swift/EchoPolicyTests.swift \
   swift/Downsampler.swift swift/DownsamplerTests.swift \
   swift/TranscriptDecision.swift swift/TranscriptDecisionTests.swift \
+  swift/Endpoint.swift swift/EndpointTests.swift \
   swift/TestMain.swift
 "$out"

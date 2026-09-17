@@ -839,10 +839,11 @@ voice.on('bargein', () => {
   if (turn.line) view.interrupted();
 });
 
-voice.on('speech-start', () => {
-  view.speaking(true);
-  watchPlayback();
-});
+voice.on('speech-start', () => view.speaking(true));
+// Armed when audio has actually been handed over, not when the line was
+// queued — Piper on a cold start takes longer to produce its first chunk than
+// the watchdog allows, and timing from pcm_start called that a dead player.
+speaker.on('playing', watchPlayback);
 
 voice.on('speech-end', () => {
   clearTimeout(playbackWatch);
@@ -867,9 +868,16 @@ voice.on('level', ({ source, rms }) => {
 // silent, whatever the daemon believes. One standby cycle is what fixed it
 // by hand, so that is what is done here, once, and the line is said again.
 const PLAYBACK_WATCH_MS = 2500;
+/** Cycles allowed before it stops trying; a real hardware fault is not fixed by the fourth. */
+const PLAYBACK_REVIVES = 3;
 let outHeard = false;
 let playbackWatch = null;
-let lastRevive = 0;
+let revives = 0;
+
+// Sound coming out again is what resets the count: one cycle is usually
+// enough, and on 17 Sep 2026 it sometimes was not — the second silent line
+// was only warned about, because a single try per minute had been used up.
+voice.on('level', ({ source, rms }) => { if (source === 'out' && rms > 0) revives = 0; });
 
 function watchPlayback() {
   outHeard = false;
@@ -879,12 +887,12 @@ function watchPlayback() {
     // Asleep with the microphone released there is no engine to cycle, and
     // reopening it would be a wake nobody asked for.
     const canCycle = mode !== MODE.ASLEEP || config.holdMic;
-    if (!canCycle || Date.now() - lastRevive < 60_000) {
+    if (!canCycle || revives >= PLAYBACK_REVIVES) {
       view.warn('no sound is coming out of that answer');
       return;
     }
-    lastRevive = Date.now();
-    view.warn('no sound came out of that — restarting the audio engine and saying it again');
+    revives += 1;
+    view.warn(`no sound came out of that — restarting the audio engine and saying it again (${revives} of ${PLAYBACK_REVIVES})`);
     // Everything not yet heard, in order: the line that stalled and whatever
     // was queued behind it. stop() forgets them, so they are copied first.
     const again = [...speaker.unfinished];

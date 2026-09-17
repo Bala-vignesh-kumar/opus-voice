@@ -57,13 +57,26 @@ def main():
             return 0
         try:
             audio = np.frombuffer(base64.b64decode(message["pcm"]), dtype=np.float32)
+            # Brought up to a common level first. A turn spoken from across
+            # the room arrived at -46 dBFS on 16 Sep 2026 and every model
+            # misheard it; normalized, medium got it word for word. Whisper's
+            # features are not level-invariant at that depth.
+            peak = float(np.abs(audio).max()) if audio.size else 0.0
+            if peak > 0:
+                audio = audio * (0.9 / peak)
             # hotwords biases the decoder toward these words; initial_prompt
             # gives it the same terms as context. Both, because which one bites
             # depends on the model and neither costs anything measurable.
+            #
+            # Beam search rather than greedy: measured on the same turns,
+            # greedy medium heard "Do you mean scared?" where beam 5 heard
+            # "Do you need to scan this codebase?", and greedy small produced
+            # "Chikanda" for "scan the". The cost on an M-series CPU is small
+            # next to the model's own time.
             segments, _ = model.transcribe(
                 audio,
                 language="en",
-                beam_size=1,
+                beam_size=5,
                 initial_prompt=prompt,
                 hotwords=hotwords,
             )

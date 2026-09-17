@@ -24,6 +24,7 @@ swiftc -O \
   swift/EchoPolicy.swift \
   swift/Downsampler.swift \
   swift/TranscriptDecision.swift \
+  swift/Endpoint.swift \
   swift/Keepalive.swift \
   -framework AVFoundation \
   -framework Speech \

@@ -68,6 +68,14 @@ export class Speaker extends EventEmitter {
     this.piper.on('audio', ({ id, data }) => {
       // Audio from an utterance that was interrupted must never reach the player.
       if (id !== this.activeId) return;
+      // The first chunk is when playback can genuinely be expected. pcm_start
+      // goes out before Piper has synthesized anything, and on a cold start
+      // that gap is long enough to look like a dead player to anyone timing
+      // from there.
+      if (!this.delivered) {
+        this.delivered = true;
+        this.emit('playing');
+      }
       this.voice.pcm(data);
     });
 
@@ -109,7 +117,9 @@ export class Speaker extends EventEmitter {
     this.emit('said', clean);
     this.unfinished.push(clean);
     if (this.engine !== 'piper') {
+      // The daemon synthesizes this itself, so it is playing as soon as it is sent.
       this.voice.speak(clean);
+      this.emit('playing');
       return;
     }
     this.queue.push(clean);
@@ -122,6 +132,7 @@ export class Speaker extends EventEmitter {
     this.busy = true;
     this.activeId = this.nextId;
     this.nextId += 1;
+    this.delivered = false;
     this.voice.pcmStart(text, this.piper.sampleRate);
     this.piper.synthesize(this.activeId, text);
   }

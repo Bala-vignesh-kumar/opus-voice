@@ -287,3 +287,52 @@ three-in-a-minute give-up. Before this, unplugging headphones ended the app.
   falcon"` addresses nothing. The path works — `shortcuts run "Run Shell Script"`
   wakes it. Renaming it is a manual step in the Shortcuts app; the CLI cannot
   rename. Until then the log warns on every launch, correctly.
+
+### The turn ends when the sound stops, not when the transcript does — 17 Sep 2026
+
+Measured on `/tmp/dump-2.wav` from a session where the speaker was cut off
+mid-sentence three turns running: 30.0 s long, energy per 250 ms shows faint
+speech from other people at −45 dB from 8.75 s, the actual speaker at −20 dB
+from 21.5 s, and **0.00 s of trailing silence** — the last frame is full-volume
+speech. The turn was taken while the person was still talking.
+
+`startEndpointTimer` ended a turn when the *transcript* had been unchanged for
+`endpointMs`, or `endpointFastMs` if it ended in a full stop, and never looked
+at the microphone. An accent the recognizer was not tuned for makes it stall
+and reconsider, and it punctuates mid-sentence ("discussing with."), so 800 ms
+later the turn was gone with the speaker still going.
+
+**So:** `Endpoint.swift`. The turn ends only when the transcript has been still
+for the threshold *and* nothing loud has been heard for as long. "Loud" is
+8 % of the turn's own peak, floored at 0.008 (−42 dBFS) — under the speaker
+by a wide margin, over the room by a small one. Tested without a device.
+
+Also found: `trimToSpeech` — the cut back to where speech actually began,
+written and tested on 4 Sep — was never called. The second recognizer was
+handed 21 s of other people's conversation with the sentence in the last 9.
+It is called now, at the one place a turn is taken.
+
+### Whisper: small, normalized, beam 5 — 17 Sep 2026
+
+Measured on the same session's dumps, Apple M5, CPU int8, drained before timing:
+
+| model | 7.1 s turn | 30 s turn | quiet turn at −46 dBFS |
+|---|---|---|---|
+| base | 0.3 s — dropped "you are" | 1.6 s | wrong |
+| small | 1.0 s — correct | 2.2 s | wrong |
+| medium | 3.1 s | 6.7 s — over the 5 s budget | correct, *only* when normalized and beam 5 |
+| large-v3-turbo | 4.8 s — worse than small on these clips | — | wrong |
+
+Two things helped every model and cost nothing: peak-normalizing the buffer
+(the −46 dBFS turn is what broke `medium`), and `beam_size=5` instead of greedy
+(greedy `medium` said "Do you mean scared?"; beam 5 said "Do you need to scan
+this codebase?"). Both are in `whisper_server.py` now.
+
+**So:** `whisperModel: "small"`. `medium` is better on hard turns but a long one
+blows the 5 s timeout and falls back to the system recognizer, which is worse
+than `small` finishing. Revisit if the GPU path (mlx-whisper, which runs
+`small` in 0.2 s once warm) is ever wired in.
+
+One glossary side effect worth knowing: with both "Claude" and "codebase" in
+`vocabulary`, "the Fineract codebase" came back as "the Fineract Claude base".
+The hotword bias is real, and it pulls both ways.

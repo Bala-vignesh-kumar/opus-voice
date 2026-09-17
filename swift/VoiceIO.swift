@@ -260,6 +260,10 @@ final class VoiceIO: NSObject {
     private var speaking = false
     private var partial = ""
     private var lastChange = Date()
+    // When the microphone last heard something loud. The endpoint timer needs
+    // it because a stalled transcript is not a stopped speaker — see
+    // Endpoint.swift for the 30-second buffer that proved it.
+    private var lastLoud = Date.distantPast
     private var spokenLower = ""
     private var queue: [String] = []
     private var generation = 0
@@ -551,6 +555,12 @@ final class VoiceIO: NSObject {
         levelSum = 0
         levelFrames = 0
         lastLevelEmit = now
+        // Measured over the same interval the level is, which keeps this off
+        // the per-buffer path. The turn's own peak sets the bar, so a quiet
+        // speaker and a loud one are judged the same way.
+        if rms >= quietThreshold(turnPeak: utterance.peak) {
+            state.async { self.lastLoud = now }
+        }
         emit(["type": "level", "source": "in", "rms": Double(rms)])
     }
 
@@ -805,8 +815,14 @@ final class VoiceIO: NSObject {
             // strong signal the thought is finished — take the turn sooner. Without
             // one, wait longer rather than cutting off someone mid-sentence.
             let complete = isCompleteThought(self.partial)
-            let threshold = complete ? self.endpointFastMs : self.endpointMs
-            guard Date().timeIntervalSince(self.lastChange) * 1000 > threshold else { return }
+            let now = Date()
+            guard shouldEndTurn(
+                sinceChangeMs: now.timeIntervalSince(self.lastChange) * 1000,
+                sinceLoudMs: now.timeIntervalSince(self.lastLoud) * 1000,
+                complete: complete,
+                endpointMs: self.endpointMs,
+                endpointFastMs: self.endpointFastMs
+            ) else { return }
             let text = self.partial
             self.partial = ""
             // Second guard, at the only place a turn is created: whatever else
@@ -822,6 +838,12 @@ final class VoiceIO: NSObject {
             // Emitted before the final so the orchestrator has the audio in
             // hand when the turn arrives, and never has to hold a turn open
             // waiting for it.
+            // Cut back to where this run of speech began. The buffer holds up
+            // to 30 seconds and a turn can open on other people talking across
+            // the room; on 16 Sep 2026 the second recognizer was handed 21
+            // seconds of that with the actual sentence in the last 9. This
+            // trim existed, with tests, and was never called.
+            self.utterance.trimToSpeech()
             // peak is read first: take() resets it along with the samples.
             let peak = self.utterance.peak
             let audio = self.utterance.take()
