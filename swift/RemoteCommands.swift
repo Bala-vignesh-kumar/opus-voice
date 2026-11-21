@@ -75,17 +75,30 @@ final class RemoteCommandWatcher {
   private func register(_ command: MPRemoteCommand, as gesture: WakeGesture, named: String) {
     command.isEnabled = true
     command.addTarget { [weak self] _ in
-      guard let self else { return .commandFailed }
-      // Every command is logged, not just the bound one, because which squeeze
-      // sends which command differs by model and by the settings in Bluetooth.
-      self.onLog("headphone command: \(named)")
-      if gesture == self.gesture {
-        self.poke()
-      }
-      if self.forwardToPlayer {
-        self.forward(named)
+      guard self != nil else { return .commandFailed }
+      // Answer MediaPlayer first and do the work on the next turn of the main
+      // loop. Running it inside the handler crashed the app on an AirPods
+      // squeeze: forward() runs a synchronous AppleScript, which spins a nested
+      // run loop (and can sit on an Automation prompt) while MediaPlayer's
+      // dispatch is still open, and any Objective-C exception raised in here
+      // unwinds through MediaPlayer, leaving the dispatch unanswered so it
+      // aborts the process when it is freed.
+      DispatchQueue.main.async { [weak self] in
+        self?.handle(named, as: gesture)
       }
       return .success
+    }
+  }
+
+  private func handle(_ named: String, as gesture: WakeGesture) {
+    // Every command is logged, not just the bound one, because which squeeze
+    // sends which command differs by model and by the settings in Bluetooth.
+    onLog("headphone command: \(named)")
+    if gesture == self.gesture {
+      poke()
+    }
+    if forwardToPlayer {
+      forward(named)
     }
   }
 
@@ -111,8 +124,16 @@ final class RemoteCommandWatcher {
     case "previous": action = "previous track"
     default: action = "playpause"
     }
-    for player in ["Spotify", "Music"] {
-      let script = "tell application \"\(player)\" to if it is running then \(action)"
+    // Checked with NSWorkspace before any AppleScript is built. Compiling
+    // `tell application "Spotify"` when Spotify is not installed does not fail:
+    // it opens a modal "Where is Spotify?" chooser and blocks until someone
+    // answers it, so every squeeze on a machine without Spotify hung the app
+    // (and, inside MediaPlayer's handler, crashed it). The "if it is running"
+    // guard inside the script came too late to help, because the chooser is
+    // raised at compile time.
+    for bundleID in ["com.spotify.client", "com.apple.Music"]
+    where !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty {
+      let script = "tell application id \"\(bundleID)\" to \(action)"
       guard let apple = NSAppleScript(source: script) else { continue }
       var error: NSDictionary?
       apple.executeAndReturnError(&error)

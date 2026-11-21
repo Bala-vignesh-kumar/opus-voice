@@ -291,7 +291,10 @@ final class MenuBar: NSObject, NSApplicationDelegate {
     guard let data = "opus voice: \(message)\n".data(using: .utf8) else { return }
     // Never truncating: node owns that, and this is the second writer.
     let handle = Orchestrator.openLog(at: log, truncating: false)
-    handle.write(data)
+    // write(contentsOf:) reports failure as a Swift error. The older write(_:)
+    // raises an Objective-C exception instead, which Swift cannot catch and
+    // which takes the app down from inside whatever callback is logging.
+    try? handle.write(contentsOf: data)
     try? handle.close()
   }
 
